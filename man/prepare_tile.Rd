@@ -5,7 +5,7 @@
 \title{Import and prepare a LAS tile for further processing}
 \usage{
 prepare_tile(path, drop.negative = TRUE, fields = "*", classes = c(2,
-  3, 4, 5, 6), flight.gap = 60, remove.overlap.class = 5)
+  3, 4, 5, 6), flight.gap = 60)
 }
 \arguments{
 \item{path}{Path to the LAS tile to process.}
@@ -23,12 +23,6 @@ fields to include. The default is to return all fields. See
 
 \item{flight.gap}{The minimum time gap (seconds) to use when assigning points
 to flight lines.}
-
-\item{remove.overlap.class}{A vector of one or more point classes (default: 5
-for high vegetation) Any overlap between flight lines is removed for the
-specified classes by calling \code{\link{remove_flightline_overlap}}.
-To disable, set this argument to an empty vector (\code{integer(0)}), or
-\code{NA} or \code{NULL}.}
 }
 \value{
 A \code{LAS} object.
@@ -37,7 +31,5 @@ A \code{LAS} object.
 This function imports data from a LAS file and prepares it for further
 processing. A surface model is first fitted to ground points (class 2) by
 Delaunay triangulation and the elevation of all points is then adjusted to be
-relative to ground level. Any areas of overlap between flight lines (e.g.
-seen for vegetation class 5 points in NSW Government data) are removed by
-default.
+relative to ground level.
 }

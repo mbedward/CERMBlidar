@@ -21,11 +21,20 @@ overlap area extends beyond all points.}
 A modified copy of the input LAS object.
 }
 \description{
-This function identifies areas of overlap between pairs of flight lines, places a
-boundary along (approximately) the middle of the overlap area, and removes points
-from each side that belong to the flight line (mainly) on the other side.
+This function identifies areas of overlap between pairs of flight lines,
+places a boundary along (approximately) the middle of the overlap area, and
+removes points from each side that belong to the flight line (mainly) on the
+other side.
+}
+\details{
+We added this function because LIDAR data provided for New South Wales in
+2018 has overlap between flight lines removed for all point classes other
+than class 5 (high vegetation).
 }
 \note{
-The algorithm used assumes that flight lines are approximately north-south.
-It will fail spectacularly if this is not the case.
+The algorithm used assumes that flight lines are approximately
+  north-south. It will fail spectacularly if this is not the case. If you
+  encounter data where the flight lines run east-west, a (hack) work-around
+  is to swap the X and Y ordinates before passing a LAS object to this
+  function, then swap them back again in the returned object
 }
