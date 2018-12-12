@@ -2,7 +2,7 @@
 % Please edit documentation in R/main_functions.R
 \name{plot_flightlines}
 \alias{plot_flightlines}
-\title{Quick plot of flight lines}
+\title{Plot point locations and flight lines}
 \usage{
 plot_flightlines(las, npts = 5000, shape = 16, size = 1)
 }
@@ -17,8 +17,21 @@ R base plot.}
 
 \item{size}{Point size.}
 }
+\value{
+A ggplot object.
+}
 \description{
 Displays points locations for a random sample of points from a LAS object,
 with points coloured by flight line ID. This is useful for detecting
 overlapping flightlines.
+}
+\examples{
+\dontrun{
+# Quick plot
+plot_flightlines(las)
+
+# Facet by point classes
+plot_flightlines(las) + facet_wrap(~ Classification)
+}
+
 }

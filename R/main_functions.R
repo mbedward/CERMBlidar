@@ -53,12 +53,6 @@ prepare_tile <- function(path,
     las@data <- las@data[ ii, ]
   }
 
-  # Remove overlap between flight lines if requested
-  if (length(remove.overlap.class) > 0 &&
-      !is.na(remove.overlap.class[1])) {
-    las <- remove_flightline_overlap(las, classes = remove.overlap.class)
-  }
-
   las
 }
 
@@ -173,7 +167,7 @@ remove_flightline_overlap <- function(las, classes = 5, res = 10, buffer = 100) 
 }
 
 
-#' Quick plot of flight lines
+#' Plot point locations and flight lines
 #'
 #' Displays points locations for a random sample of points from a LAS object,
 #' with points coloured by flight line ID. This is useful for detecting
@@ -189,22 +183,33 @@ remove_flightline_overlap <- function(las, classes = 5, res = 10, buffer = 100) 
 #'
 #' @param size Point size.
 #'
+#' @return A ggplot object.
+#'
 #' @importFrom dplyr %>%
 #' @importFrom ggplot2 aes coord_equal ggplot geom_point
+#'
+#' @examples
+#' \dontrun{
+#' # Quick plot
+#' plot_flightlines(las)
+#'
+#' # Facet by point classes
+#' plot_flightlines(las) + facet_wrap(~ Classification)
+#' }
 #'
 #' @export
 #'
 plot_flightlines <- function(las, npts = 5000, shape = 16, size = 1) {
   if ("flightlineID" %in% colnames(las@data)) {
-    ii <- sample(nrow(las@data), npts)
-
     dat <- las@data %>%
       as.data.frame() %>%
-      dplyr::select(X, Y, flightlineID)
+      dplyr::sample_n(npts) %>%
+      dplyr::mutate(flightline = factor(flightlineID))
 
     ggplot(data = dat, aes(x = X, y = Y)) +
-      geom_point(aes(colour = flightlineID),
+      geom_point(aes(colour = flightline),
                  shape = shape, size = size) +
+
       coord_equal()
   }
   else {
