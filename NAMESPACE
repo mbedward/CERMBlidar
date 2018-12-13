@@ -2,7 +2,7 @@
 
 export(check_strata)
 export(get_building_points)
-export(get_strata_counts)
+export(get_stratum_counts)
 export(get_stratum_cover)
 export(highest_density_interval)
 export(is_prepared_tile)

@@ -13,6 +13,7 @@ vignette: >
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
+  eval = FALSE,
   fig.width = 8,
   fig.height = 6
 )
@@ -37,7 +38,7 @@ DATA_DIR <- here("..", "test_data", "AHD")
 
 ## Import a tile from disk
 
-The function `prepare_tile` imports data from a LAS file and normalizes point heights to ground level.
+The function `prepare_tile` imports data from a LAS file and normalizes point heights to ground level. Note that you will probably see a warning message relating to the normalizing step. This is issued by the underlying `lidR` package function and can be safely ignored.
 
 ```{r}
 
@@ -54,6 +55,8 @@ plot_flightlines(las) + facet_wrap(~Classification )
 
 ```
 
+![Point locations and flight lines](flightlines_overlap.png)
+
 ## Remove the overlap for points in class 5 
 
 ```{r}
@@ -64,17 +67,19 @@ plot_flightlines(las) + facet_wrap(~Classification)
 
 ```
 
+![Flight lines after overlap for class 5 removed](flightlines_without_overlap.png)
+
 ## Get point counts for vegetation strata
 
 The package includes lookup tables for vegetation strata as defined by Specht (StrataSpecht); and the NSW Office of Environment and Heritage (StrataOFH: overall fuel hazard).
 
-```{r}
+```{r eval=TRUE}
 
 CERMBlidar::StrataSpecht
 
 ```
 
-```{r}
+```{r eval=TRUE}
 
 CERMBlidar::StrataOFH
 
@@ -88,20 +93,33 @@ Getting and displaying the ground and vegetation point counts for Specht strata:
 
 # This function returns a RasterStack object with layers 
 # corresponding to strata
-rcounts <- get_strata_counts(las, StrataSpecht, res = 10)
+rcounts <- get_stratum_counts(las, StrataSpecht, res = 10)
 plot(rcounts)
 
 ```
 
+![Point counts by stratum](point_counts.png)
 
 ## Vegetation cover estimates for strata
 
-Mean cover estimates are derived from the rasters of point counts by stratum. If point counts are not needed for any other purpose, these two steps can be combined using the `%>%` operator from the dplyr package.
+Mean cover estimates are derived from the rasters of point counts by stratum. 
 
 ```{r}
 
 rcover <- get_stratum_cover(rcounts)
 plot(rcover)
+
+```
+
+![Mean cover by stratum](veg_strata_cover.png)
+
+If point counts are not needed for any other purpose, these two steps can be combined using the `%>%` operator from the dplyr package.
+
+```{r}
+
+rcover <- las %>%
+  get_stratum_counts(StrataSpecht, res = 10) %>%
+  get_stratum_cover()
 
 ```
 

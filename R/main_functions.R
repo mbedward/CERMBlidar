@@ -257,7 +257,7 @@ is_prepared_tile <- function(las) {
 #'
 #' @export
 #'
-get_strata_counts <- function(las, strata, res = 10, classes = c(2,3,4,5)) {
+get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5)) {
 
   if (!is_prepared_tile(las))
     stop("Argument 'las' must be a LAS object imported with prepare_tile")
@@ -448,7 +448,7 @@ highest_density_interval <- function (x, prob = 0.95) {
 
 #' Check strata lookup table and put it into a standard form
 #'
-#' This function is used by \code{\link{get_strata_counts}}. It checks that:
+#' This function is used by \code{\link{get_stratum_counts}}. It checks that:
 #' \itemize{
 #'   \item The object is a data frame with (at least) three columns labelled:
 #'     name, lower, upper. Column order and case of names does not matter.
