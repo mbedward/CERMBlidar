@@ -252,8 +252,6 @@ is_prepared_tile <- function(las) {
 #' @return A \code{RasterStack} where each layer corresponds to a stratum
 #'   (or ground) and cell values are point counts.
 #'
-#' @importFrom raster raster rasterize setValues stack
-#'
 #' @export
 #'
 get_strata_counts <- function(las, strata, res = 10, classes = c(2,3,4,5)) {
