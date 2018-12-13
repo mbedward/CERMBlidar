@@ -186,7 +186,7 @@ remove_flightline_overlap <- function(las, classes = 5, res = 10, buffer = 100) 
 #' @return A ggplot object.
 #'
 #' @importFrom dplyr %>%
-#' @importFrom ggplot2 aes coord_equal ggplot geom_point
+#' @importFrom ggplot2 aes coord_equal ggplot geom_point theme
 #'
 #' @examples
 #' \dontrun{
@@ -210,7 +210,10 @@ plot_flightlines <- function(las, npts = 5000, shape = 16, size = 1) {
       geom_point(aes(colour = flightline),
                  shape = shape, size = size) +
 
-      coord_equal()
+      coord_equal() +
+
+      theme(axis.ticks = element_blank(),
+            axis.text = element_blank())
   }
   else {
     warning("No flightlineID field found")
