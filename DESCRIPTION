@@ -1,8 +1,8 @@
 Package: CERMBlidar
 Type: Package
 Title: A collection of functions to process aerial LIDAR data.
-Version: 0.1.0
-Date: 2018-12-13
+Version: 0.1.2
+Date: 2019-02-04
 Authors@R: c(
   person("Michael", "Bedward", role = c("aut", "cre"), email = "michael.bedward@gmail.com"),
   person("Meaghan", "Jenkins", role = "aut", email = "mjenkins@uow.edu.au")
@@ -12,10 +12,12 @@ Description: Functions used by the Centre for Environmental Risk Management of B
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 6.1.0
+RoxygenNote: 6.1.1
 Suggests: testthat,
     knitr,
-    rmarkdown
+    rmarkdown,
+    rvest,
+    xml2
 LinkingTo: Rcpp
 Depends: R (>= 3.5.0),
   lidR,
@@ -25,5 +27,6 @@ Imports: Rcpp,
   ggplot2,
   mgcv,
   sf,
-  sp
+  sp,
+  stringr
 VignetteBuilder: knitr
