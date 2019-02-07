@@ -5,10 +5,15 @@
 \title{Import and prepare a LAS tile for further processing}
 \usage{
 prepare_tile(path, drop.negative = TRUE, fields = "*", classes = c(2,
-  3, 4, 5, 6), flight.gap = 60)
+  3, 4, 5, 6), flight.gap = 60, unzip.dir = NULL)
 }
 \arguments{
-\item{path}{Path to the LAS tile to process.}
+\item{path}{Path to the LAS tile to process. If the file extension is '.zip'
+it is assumed to be a compressed LAS file that will be unzipped before
+processing (see the \code{unzip.dir} parameter below). A compressed file
+should contain only one LAS file (identified by having a 'las' or 'LAS'
+file extension) although it can also contain other files (e.g. HTML or XML
+documents).}
 
 \item{drop.negative}{If TRUE, any points (other than ground points) whose
 heights are below ground level (as estimated by Delaunay interpolation of
@@ -23,6 +28,11 @@ fields to include. The default is to return all fields. See
 
 \item{flight.gap}{The minimum time gap (seconds) to use when assigning points
 to flight lines.}
+
+\item{unzip.dir}{The directory in which to uncompress a compressed LAS file
+(identified by a '.zip' extension). If \code{NULL} (default) a temporary
+directory will be used. After processing, the uncompressed file will be
+deleted.}
 }
 \value{
 A \code{LAS} object.

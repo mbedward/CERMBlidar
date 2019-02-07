@@ -5,7 +5,12 @@
 #' Delaunay triangulation and the elevation of all points is then adjusted to be
 #' relative to ground level.
 #'
-#' @param path Path to the LAS tile to process.
+#' @param path Path to the LAS tile to process. If the file extension is '.zip'
+#'   it is assumed to be a compressed LAS file that will be unzipped before
+#'   processing (see the \code{unzip.dir} parameter below). A compressed file
+#'   should contain only one LAS file (identified by having a 'las' or 'LAS'
+#'   file extension) although it can also contain other files (e.g. HTML or XML
+#'   documents).
 #'
 #' @param drop.negative If TRUE, any points (other than ground points) whose
 #'   heights are below ground level (as estimated by Delaunay interpolation of
@@ -21,6 +26,11 @@
 #' @param flight.gap The minimum time gap (seconds) to use when assigning points
 #'   to flight lines.
 #'
+#' @param unzip.dir The directory in which to uncompress a compressed LAS file
+#'   (identified by a '.zip' extension). If \code{NULL} (default) a temporary
+#'   directory will be used. After processing, the uncompressed file will be
+#'   deleted.
+#'
 #'
 #' @return A \code{LAS} object.
 #'
@@ -30,16 +40,35 @@ prepare_tile <- function(path,
                          drop.negative = TRUE,
                          fields = "*",
                          classes = c(2, 3, 4, 5, 6),
-                         flight.gap = 60) {
+                         flight.gap = 60,
+                         unzip.dir = NULL) {
 
   if (length(path) > 1) {
     warning("Presently only one path element is supported. Ignoring extra elements.")
     path <- path[1]
   }
 
+  zipped <- .is_zipped(path)
+  if (zipped) {
+    if (is.null(unzip.dir)) unzip.dir <- tempdir(check = TRUE)
+
+    # allow for the possibility that there are other files in the zip file as well
+    # as the LAS file
+    unz.files <- utils::unzip(path, overwrite = TRUE, exdir = unzip.dir)
+
+    las.file <- stringr::str_subset(unz.files, "\\.(las|LAS)$")
+    n <- length(las.file)
+
+    if (n == 0) stop("zip file does not contain a file with extension las or LAS")
+    if (n > 1) stop("zip file contains multiple LAS files")
+
+  } else {
+    las.file <- path
+  }
+
   filtertxt <- paste("-keep_class", paste(classes, collapse = " "))
 
-  las <- lidR::readLAS(path, select = fields, filter = filtertxt)
+  las <- lidR::readLAS(las.file, select = fields, filter = filtertxt)
 
   # Normalize point heights relative to ground level
   lidR::lasnormalize(las, method = "delaunay")
@@ -53,9 +82,14 @@ prepare_tile <- function(path,
     las@data <- las@data[ ii, ]
   }
 
+  if (zipped) {
+    unlink(unz.files)
+  }
+
   las
 }
 
+.is_zipped <- function(path) stringr::str_detect(path, "\\.zip\\s*$")
 
 #' Remove overlap between flight lines.
 #'
