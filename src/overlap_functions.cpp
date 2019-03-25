@@ -1,7 +1,6 @@
 #include <Rcpp.h>
 using namespace Rcpp;
 
-
 // Rasterizes point data and, for each raster row, finds the
 // approximate median X ordinate of the overlap zone.
 //
@@ -36,10 +35,14 @@ NumericMatrix get_overlap_midpoints(NumericMatrix xyf, double res) {
     x = rasdata(r,c);
 
     if (x == 0) {
+      // First point for this raster cell so record flight line
       rasdata(r,c) = f;
     }
-    else if (x != f) {
-      rasdata(r,c) = -(std::min<double>(x, f));
+    else if (x > 0 && x != f) {
+      // Already one or more points in this cell from another
+      // flightline, so flag as an overlap cell by setting
+      // value to negative
+      rasdata(r,c) = -1;
     }
   }
 

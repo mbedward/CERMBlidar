@@ -7,7 +7,7 @@
 is_prepared_tile(las)
 }
 \arguments{
-\item{las}{A LAS tile, ie. an imported object rather than a path.}
+\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
 }
 \value{
 TRUE if the tile has been prepared or FALSE otherwise.

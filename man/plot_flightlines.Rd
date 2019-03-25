@@ -7,8 +7,7 @@
 plot_flightlines(las, npts = 5000, shape = 16, size = 1)
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}} or
-\code{\link[lidR]{readLAS}}.}
+\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
 
 \item{npts}{Number of points to sample from the LAS object (default: 5000).}
 

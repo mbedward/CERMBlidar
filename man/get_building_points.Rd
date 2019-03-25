@@ -7,8 +7,7 @@
 get_building_points(las)
 }
 \arguments{
-\item{las}{A LAS tile imported and prepared with function
-\code{\link{prepare_tile}}.}
+\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
 }
 \value{
 An \code{sf} spatial data frame suitable for map display and export

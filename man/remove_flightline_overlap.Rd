@@ -7,8 +7,7 @@
 remove_flightline_overlap(las, classes = 5, res = 10, buffer = 100)
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}} or
-\code{\link[lidR]{readLAS}}.}
+\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
 
 \item{classes}{Vector of one or more integer codes for point classes to consider.}
 

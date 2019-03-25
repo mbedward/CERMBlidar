@@ -34,6 +34,8 @@
 #'
 #' @return A \code{LAS} object.
 #'
+#' @importFrom dplyr %>%
+#'
 #' @export
 #'
 prepare_tile <- function(path,
@@ -68,13 +70,14 @@ prepare_tile <- function(path,
 
   filtertxt <- paste("-keep_class", paste(classes, collapse = " "))
 
-  las <- lidR::readLAS(las.file, select = fields, filter = filtertxt)
+  las <- lidR::readLAS(las.file, select = fields, filter = filtertxt) %>%
+    # Normalize point heights relative to ground level
+    lidR::lasnormalize(algorithm = lidR::tin()) %>%
 
-  # Normalize point heights relative to ground level
-  lidR::lasnormalize(las, method = "delaunay")
+    # Add flight line indices based on GPS times for points
+    #lidR::lasflightline(dt = flight.gap)
+    .tag_flight_line(., dt = flight.gap)
 
-  # Add flight line indices based on GPS times for points
-  lidR::lasflightline(las, dt = flight.gap)
 
   # remove negative heights
   if (drop.negative) {
@@ -89,7 +92,221 @@ prepare_tile <- function(path,
   las
 }
 
+
+# This function is called by prepare_tile to identify flight lines based
+# on point GPS times. The function lidR::lasflightline does this but it
+# was broken in version 2.0.1 of the package, hence this work-around.
+.tag_flight_line <- function(las, dt = 30) {
+  x <- data.frame(t = las@data[, "gpstime"])
+  x$i <- 1:nrow(x)
+  x <- x[order(x$t),]
+
+  b <- c(TRUE, diff(x$t) > dt)
+  b[1] <- TRUE
+  x$flightlineID <- cumsum(b)
+
+  x <- x[order(x$i),]
+
+  las@data$flightlineID <- x$flightlineID
+
+  las
+}
+
+
 .is_zipped <- function(path) stringr::str_detect(path, "\\.zip\\s*$")
+
+
+#' Check that the orientations of all flightlines match
+#'
+#' This is a convenience function that calls \code{\link{get_flightline_dir}}
+#' and checks that all flight lines have the same orientation and are either
+#' E-W or N-S.
+#'
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#'
+#' @param ratio Value passed to \code{get_flightline_dir} for the minimum ratio
+#'   of X and Y dimensions to be classified as either 'EW' or 'NS'.
+#'
+#' @return \code{TRUE} if flight lines are consistent; \code{FALSE} otherwise.
+#'
+#' @importFrom dplyr %>% group_by mutate summarize
+#'
+#' @export
+#'
+check_flightlines <- function(las, ratio = 1.5) {
+  dat <- get_flightline_dir(las)
+  o <- dat$orientation
+
+  (o[1] %in% c("EW", "NS")) && all(o == o[1])
+}
+
+
+#' Get the dimensions and orientations of flight lines
+#'
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#'
+#' @param ratio Minimum ratio of X and Y dimensions to be classified as either
+#'   E-W or N-S. Flight lines that do not satisfy this ratio are classified
+#'   as 'XX'.
+#'
+#' @return A data frame with columns: flightlineID, xlen, ylen and orientation.
+#'
+#' @importFrom dplyr %>% group_by mutate summarize
+#'
+#' @export
+#'
+get_flightline_dir <- function(las, ratio = 1.5) {
+  stopifnot(ratio > 1)
+
+  ids <- sort(unique(las@data$flightlineID))
+
+  rects <- lapply(ids, function(id) {
+    r <- get_bounding_rectangle(las, classes = "all", flightlines = id)
+    r$flightlineID <- id
+    r
+  })
+
+  rects <- dplyr::bind_rows(rects) %>%
+    group_by(flightlineID) %>%
+
+    summarize(xlen = diff(range(X)),
+              ylen = diff(range(Y))) %>%
+
+    mutate(orientation = case_when(
+      xlen > ratio * ylen ~ "EW",
+      ylen > ratio * xlen ~ "NS",
+      TRUE ~ "XX"
+    ))
+
+  rects
+}
+
+
+#' Find the minimum bounding rectangle that encloses specified points.
+#'
+#' When called with a single argument for the LAS tile, this function returns
+#' the minimum bounding rectangle for the point cloud. The \code{classes} and
+#' \code{flightlineIDs} arguments can be used to define a subset of points
+#' to consider. If another kind of subset is required, the helper function
+#' \code{link{.min_rectangle}} can be used directly.
+#'
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#'
+#' @param classes Point classes to include: either a vector of integer class
+#'   numbers or the string \code{'all'} (default).
+#'
+#' @param flightlineIDs Flight lines to include: either a vector of integer
+#'   class numbers or the string \code{'all'} (default).
+#'
+#' @return A data frame of corner vertices for the minimum bounding rectangle.
+#'
+#' Adapted from code by 'whuber' at: https://gis.stackexchange.com/a/22934/59514
+#'
+#' @importFrom dplyr %>%
+#'
+#' @export
+#'
+get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
+  if ("flightlineID" %in% colnames(las@data)) {
+
+    lines.all <- sort(unique(las@data$flightlineID))
+
+    if (tolower(flightlines) == "all") {
+      flightlines <- lines.all
+    } else if (length(flightlines) < 1) {
+      stop("Argument flightlineIDs should either be 'all' or a vector of one or more integer values")
+    } else {
+      ii <- flightlines %in% lines.all
+      if (!all(ii)) {
+        if (!any(ii)) stop("None of the specified flight lines appear in the tile")
+        else {
+          warning("Ignoring specified flight lines that are not in the tile")
+          flightlines <- flightlines[ii]
+        }
+      }
+    }
+  }
+
+  classes.all <- sort(unique(las@data$Classification))
+
+  if (tolower(classes) == "all") {
+    classes <- classes.all
+  } else if (length(classes) < 1) {
+    stop("Argument classes should either be 'all' or a vector of one or more integer values")
+  } else {
+    ii <- classes %in% classes.all
+    if (!all(ii)) {
+      if (!any(ii)) stop("None of the specified classes appear in the tile")
+      else {
+        warning("Ignoring specified classes that are not in the tile")
+        classes <- classes[ii]
+      }
+    }
+  }
+
+  las@data %>%
+    as.data.frame() %>%
+
+    dplyr::filter(Classification %in% classes,
+                  flightlineID %in% flightlines) %>%
+
+    dplyr::select(X, Y) %>%
+
+    .min_rectangle()
+}
+
+
+#' Find the minimum bounding rectangle that encloses a set of points
+#'
+#' This is a helper function called by \code{\link{get_bounding_rectangle}}.
+#'
+#' @param X,Y The X and Y arguments provide the point coordinates. Any
+#'   reasonable way of defining the coordinates is acceptable. See the function
+#'   \code{\link[grDevices]{xy.coords}} for details. If supplied separately,
+#'   they must be of the same length.
+#'
+#' @return A data frame of corner vertices for the minimum bounding rectangle.
+#'
+#' Adapted from code by 'whuber' at: https://gis.stackexchange.com/a/22934/59514
+#'
+#' @export
+#'
+.min_rectangle <- function(X, Y = NULL) {
+  xy <- xy.coords(X, Y)
+
+  # find vertices of the convex hull
+  xy <- cbind(xy$x, xy$y)
+  ii <- grDevices::chull(xy)
+  m <- xy[ii, ]
+
+  # edge lengths
+  dm <- cbind(
+    dX = diff(m[,1]),
+    dY = diff(m[,2])
+  )
+
+  # edge lengths
+  lens <- apply(dm, 1, function(x) sqrt(x %*% x))
+
+  # unit edge directions
+  v <- diag(1/lens) %*% dm
+
+  # normal directions to the edges
+  w <- cbind(-v[,2], v[,1])
+
+  # extremes along edges
+  x <- apply(m %*% t(v), 2, range)
+  y <- apply(m %*% t(w), 2, range)
+
+  areas <- (y[1,]-y[2,])*(x[1,]-x[2,])
+  k <- which.min(areas)
+
+  rect <- cbind(x[c(1,2,2,1,1),k], y[c(1,1,2,2,1),k]) %*% rbind(v[k,], w[k,])
+  colnames(rect) <- c("X", "Y")
+
+  as.data.frame(rect)
+}
+
 
 #' Remove overlap between flight lines.
 #'
@@ -108,8 +325,7 @@ prepare_tile <- function(path,
 #'   is to swap the X and Y ordinates before passing a LAS object to this
 #'   function, then swap them back again in the returned object
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}} or
-#'   \code{\link[lidR]{readLAS}}.
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
 #' @param classes Vector of one or more integer codes for point classes to consider.
 #'
@@ -128,8 +344,8 @@ remove_flightline_overlap <- function(las, classes = 5, res = 10, buffer = 100) 
 
   if (nlines > 1) {
     # Record extent of tile
-    xrange <- range(las@data$X) + c(-buffer, buffer)
-    yrange <- range(las@data$Y) + c(-buffer, buffer)
+    tile.xlims <- range(las@data$X) + c(-buffer, buffer)
+    tile.ylims <- range(las@data$Y) + c(-buffer, buffer)
 
     # Indices of points to examine
     irecs <- which(las@data$Classification %in% classes)
@@ -139,6 +355,9 @@ remove_flightline_overlap <- function(las, classes = 5, res = 10, buffer = 100) 
 
     # Subset of point data for processing
     dat <- as.matrix( las@data[irecs, c("X", "Y", "flightlineID")] )
+
+    # Check orientation of flight lines
+
 
 
     # derive a boundary for each pair of flight lines and use it
@@ -156,34 +375,48 @@ remove_flightline_overlap <- function(las, classes = 5, res = 10, buffer = 100) 
       mids <- as.data.frame(mids)
       colnames(mids) <- c("x", "y", "n")
 
-      # Derive a boundary by fiting a smoothing spline to the overlap mid-points
-      m <- mgcv::gam(x ~ s(y), data = mids)
-      ys <- seq(yrange[1], yrange[2], length.out = 100)
-      xs <- mgcv::predict.gam(m, newdata = data.frame(y = ys))
+      # Check if there are many missing values for mid-point X ordinates.
+      # This happens when one flight line is only present at the edge of a
+      # tile. In this case we just want to discard the points for the
+      # minority flight line.
+      if (sum(is.na(mids[, "x"])) > nrow(mids) / 2) {
+        # Identify the minority flightline
+        fminor <- ifelse(sum(xyf[,3] == fline1) < nrow(xyf)/2, fline1, fline2)
 
-      # Identify points on one side of the boundary
-      pol.x <- c(xs, xrange[1], xrange[1], xs[1])
-      pol.y <- c(ys, yrange[2], yrange[1], ys[1])
+        # Flag points for removal
+        remove <- xyf[,3] == fminor
 
-      inside <- sp::point.in.polygon(xyf[,1], xyf[,2], pol.x, pol.y) > 0
-
-      # Identify flight line to assign on either side of the boundary
-      # The following steps try to allow for the fact that both lines
-      # might be more or less equally present on one side of the
-      # boundary
-      tbl <- table(xyf[,3], inside)
-      tbl <- apply(tbl, 2, function(vals) vals / sum(vals))
-      top <- which.max(tbl)
-      if (top == 2 | top == 3) {
-        in.fline <- fline1
       } else {
-        in.fline <- fline2
-      }
+        # Found an adequate number of overlap mid-points.
+        # Derive a boundary by fiting a smoothing spline.
+        m <- mgcv::gam(x ~ s(y), data = mids)
+        ys <- seq(tile.ylims[1], tile.ylims[2], length.out = 100)
+        xs <- mgcv::predict.gam(m, newdata = data.frame(y = ys))
 
-      # Remove a point if it is inside the polygon (on the reference side of the
-      # boundary) but does not belong to the inside flightline, OR it is outside
-      # (other side of the boundary) but belongs to the inside flightline.
-      remove <- inside != (xyf[,3] == in.fline)
+        # Identify points on one side of the boundary
+        pol.x <- c(xs, tile.xlims[1], tile.xlims[1], xs[1])
+        pol.y <- c(ys, tile.ylims[2], tile.ylims[1], ys[1])
+
+        inside <- sp::point.in.polygon(xyf[,1], xyf[,2], pol.x, pol.y) > 0
+
+        # Identify flight line to assign on either side of the boundary
+        # The following steps try to allow for the fact that both lines
+        # might be more or less equally present on one side of the
+        # boundary
+        tbl <- table(xyf[,3], inside)
+        tbl <- apply(tbl, 2, function(vals) vals / sum(vals))
+        top <- which.max(tbl)
+        if (top == 2 | top == 3) {
+          in.fline <- fline1
+        } else {
+          in.fline <- fline2
+        }
+
+        # Remove a point if it is inside the polygon (on the reference side of the
+        # boundary) but does not belong to the inside flightline, OR it is outside
+        # (other side of the boundary) but belongs to the inside flightline.
+        remove <- inside != (xyf[,3] == in.fline)
+      }
 
       # Flag removal of points from the tile. The logical OR `|` is to take into
       # account that a point might have already been flagged for removal when
@@ -207,8 +440,7 @@ remove_flightline_overlap <- function(las, classes = 5, res = 10, buffer = 100) 
 #' with points coloured by flight line ID. This is useful for detecting
 #' overlapping flightlines.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}} or
-#'   \code{\link[lidR]{readLAS}}.
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
 #' @param npts Number of points to sample from the LAS object (default: 5000).
 #'
@@ -220,7 +452,7 @@ remove_flightline_overlap <- function(las, classes = 5, res = 10, buffer = 100) 
 #' @return A ggplot object.
 #'
 #' @importFrom dplyr %>%
-#' @importFrom ggplot2 aes coord_equal ggplot geom_point theme
+#' @importFrom ggplot2 aes coord_equal element_blank ggplot geom_point theme
 #'
 #' @examples
 #' \dontrun{
@@ -255,13 +487,53 @@ plot_flightlines <- function(las, npts = 5000, shape = 16, size = 1) {
 }
 
 
+#' Get scan times for a LAS tile
+#'
+#' The data table for an imported LAS tile (a \code{las} object) includes a
+#' \code{gpstime} column which gives, for each point, scan time expressed as
+#' \code{S - 1e9} where \code{S} is the number of seconds since GPS epoch time:
+#' 1980-01-06 00:00:00 (GMT / UTC). This function converts the GPS time values
+#' to \code{POSIXct} date-times and finds the start and end values, either for
+#' the tile as a whole or for individual flightlines.
+#'
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#'
+#' @param by One of 'all' (default) or 'flightline'. Case-insensitive and may
+#'   be abbreviated.
+#'
+#' @return A data frame of start and end times.
+#'
+#' @importFrom dplyr %>% group_by summarize arrange
+#' @export
+#'
+get_scan_times <- function(las, by) {
+  if (missing(by) || is.null(by) || by == "") {
+    by <- "all"
+  } else {
+    by <- match.arg(tolower(by), c("all", "flightline"))
+  }
+
+  T0 <- lubridate::ymd_hms("1980-01-06 00:00:00", tz = "GMT")
+  times <- T0 + lubridate::seconds(1e9 + las@data$gpstime)
+
+  if (by == "all") {
+    data.frame(time.start = min(times), time.end = max(times))
+  } else {
+    data.frame(flightlineID = las@data$flightlineID, times) %>%
+      group_by(flightlineID) %>%
+      summarize(time.start = min(times), time.end = max(times)) %>%
+      arrange(flightlineID)
+  }
+}
+
+
 #' Check whether a LAS tile object has been prepared
 #'
 #' When a LAS tile is imported using the \code{\link{prepare_tile}} function,
 #' point heights are normalized relative to ground elevation. This adds an
 #' extra column (Zref) to the LAS data table.
 #'
-#' @param las A LAS tile, ie. an imported object rather than a path.
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
 #' @return TRUE if the tile has been prepared or FALSE otherwise.
 #'
@@ -269,14 +541,13 @@ plot_flightlines <- function(las, npts = 5000, shape = 16, size = 1) {
 #'
 is_prepared_tile <- function(las) {
   if (!inherits(las, "LAS")) stop("Object is not a LAS tile")
-  "zref" %in% tolower(colnames(las@data))
+  all(c("zref", "flightlineID") %in% tolower(colnames(las@data)))
 }
 
 
 #' Get vegetation point counts for defined strata.
 #'
-#' @param las A LAS tile imported and prepared with function
-#'   \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
 #' @param strata A data frame of strata definitions with three columns:
 #'   name, lower, upper.
@@ -355,8 +626,7 @@ get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5)) {
 
 #' Extract building points from a LAS tile
 #'
-#' @param las A LAS tile imported and prepared with function
-#'   \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
 #' @return An \code{sf} spatial data frame suitable for map display and export
 #'   to a shapefile.
@@ -522,5 +792,4 @@ check_strata <- function(strata) {
 
   strata
 }
-
 
