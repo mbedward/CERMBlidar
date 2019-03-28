@@ -68,7 +68,8 @@ compile_metadata <- function(path, dirs = "LAS", exts = "html", extent.crs = 432
       filename = m$filename,
       locality = m$locality,
       ahdnum = m$ahdnum,
-      date = as.Date(m$date),
+      startdate = as.Date(m$startdate),
+      enddate = as.Date(m$enddate),
       lidnum = m$lidnum,
       classnum = m$classnum,
 
@@ -114,7 +115,8 @@ compile_metadata <- function(path, dirs = "LAS", exts = "html", extent.crs = 432
 #'     \item{lidnum}{LID or PHO number, e.g. 'PHO3' (from file name).}
 #'     \item{classnum}{Class number, e.g. 'C0' (from filename).}
 #'     \item{ahdnum}{AHD number, e.g. 6386236 (from filename).}
-#'     \item{date}{Date of data capture (from doc).}
+#'     \item{startdate}{Start date of data capture (from doc).}
+#'     \item{enddate}{End date of data capture (from doc).}
 #'     \item{bounds.lon}{Vector of min and max longitude (from doc).}
 #'     \item{bound.lat}{Vector of min and max latitude (from doc).}
 #'     \item{epsg}{EPSG code for tile (from doc). To be used if converting to UTM coordinates.}
@@ -162,7 +164,8 @@ read_html_metadata <- function(path.html) {
 
   epsg <- node.txt %>% str_subset(ri("epsg")) %>% str_extract("\\d+") %>% as.numeric()
   datum <- node.txt %>% str_subset(ri("horizontal datum")) %>% str_extract("[A-Z0-9]+$")
-  date <- node.txt %>% str_subset(ri("start date")) %>% str_extract("[0-9\\-]+") %>% as.Date()
+  startdate <- node.txt %>% str_subset(ri("capture start date")) %>% str_extract("[0-9\\-]+") %>% as.Date()
+  enddate <- node.txt %>% str_subset(ri("capture end date")) %>% str_extract("[0-9\\-]+") %>% as.Date()
 
   list(
     filename = fname,
@@ -170,7 +173,8 @@ read_html_metadata <- function(path.html) {
     lidnum = lidnum,
     classnum = classnum,
     ahdnum = ahdnum,
-    date = date,
+    startdate = startdate,
+    enddate = enddate,
     bounds.lon = sort(lon),
     bounds.lat = sort(lat),
     epsg = epsg,

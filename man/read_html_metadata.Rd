@@ -17,7 +17,8 @@ A named list with the following elements:
     \item{lidnum}{LID or PHO number, e.g. 'PHO3' (from file name).}
     \item{classnum}{Class number, e.g. 'C0' (from filename).}
     \item{ahdnum}{AHD number, e.g. 6386236 (from filename).}
-    \item{date}{Date of data capture (from doc).}
+    \item{startdate}{Start date of data capture (from doc).}
+    \item{enddate}{End date of data capture (from doc).}
     \item{bounds.lon}{Vector of min and max longitude (from doc).}
     \item{bound.lat}{Vector of min and max latitude (from doc).}
     \item{epsg}{EPSG code for tile (from doc). To be used if converting to UTM coordinates.}
