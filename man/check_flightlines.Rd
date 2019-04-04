@@ -20,3 +20,6 @@ This is a convenience function that calls \code{\link{get_flightline_dir}}
 and checks that all flight lines have the same orientation and are either
 E-W or N-S.
 }
+\seealso{
+\code{\link{get_flightline_dir}}
+}

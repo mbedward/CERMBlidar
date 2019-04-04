@@ -13,8 +13,8 @@ remove_flightline_overlap(las, classes = 5, res = 10, buffer = 100)
 
 \item{res}{Raster cell size to use when delineating overlap areas.}
 
-\item{buffer}{Buffer width. This is used to ensure the boundary partitioning an
-overlap area extends beyond all points.}
+\item{buffer}{Width of a buffer placed around the tile to ensure that the
+boundaries partitioning overlap areas extend beyond all points.}
 }
 \value{
 A modified copy of the input LAS object.
@@ -23,17 +23,16 @@ A modified copy of the input LAS object.
 This function identifies areas of overlap between pairs of flight lines,
 places a boundary along (approximately) the middle of the overlap area, and
 removes points from each side that belong to the flight line (mainly) on the
-other side.
+other side. Before searching for, and removing, overlaps the function checks
+that all flight lines have consistent orientation, ie. either all are
+north-south or all are east-west. If this is not the case a warning message
+is issued and the original, unmodified tile is returned.
 }
 \details{
 We added this function because LIDAR data provided for New South Wales in
-2018 has overlap between flight lines removed for all point classes other
+2018 had overlap between flight lines removed for all point classes other
 than class 5 (high vegetation).
 }
-\note{
-The algorithm used assumes that flight lines are approximately
-  north-south. It will fail spectacularly if this is not the case. If you
-  encounter data where the flight lines run east-west, a (hack) work-around
-  is to swap the X and Y ordinates before passing a LAS object to this
-  function, then swap them back again in the returned object
+\seealso{
+\code{\link{check_flightlines}}, \code{\link{plot_flightlines}}
 }

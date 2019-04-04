@@ -6,20 +6,21 @@
 using namespace Rcpp;
 
 // get_overlap_midpoints
-NumericMatrix get_overlap_midpoints(NumericMatrix xyf, double res);
-RcppExport SEXP _CERMBlidar_get_overlap_midpoints(SEXP xyfSEXP, SEXP resSEXP) {
+NumericMatrix get_overlap_midpoints(NumericMatrix xyf, double res, bool NSorientation);
+RcppExport SEXP _CERMBlidar_get_overlap_midpoints(SEXP xyfSEXP, SEXP resSEXP, SEXP NSorientationSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< NumericMatrix >::type xyf(xyfSEXP);
     Rcpp::traits::input_parameter< double >::type res(resSEXP);
-    rcpp_result_gen = Rcpp::wrap(get_overlap_midpoints(xyf, res));
+    Rcpp::traits::input_parameter< bool >::type NSorientation(NSorientationSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_overlap_midpoints(xyf, res, NSorientation));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_CERMBlidar_get_overlap_midpoints", (DL_FUNC) &_CERMBlidar_get_overlap_midpoints, 2},
+    {"_CERMBlidar_get_overlap_midpoints", (DL_FUNC) &_CERMBlidar_get_overlap_midpoints, 3},
     {NULL, NULL, 0}
 };
 
