@@ -32,8 +32,6 @@
 #'
 compile_metadata <- function(path, dirs = "LAS", exts = "html", extent.crs = 4326) {
 
-  browser()
-
   path <- normalizePath(path, winslash = "/")
 
   ## Build list of paths for tiles
