@@ -9,7 +9,7 @@ Authors@R: c(
   )
 Description: Functions used by the Centre for Environmental Risk Management of Bushfires, 
   University of Wollongong, to prepare and analyse aerial LIDAR data. 
-License: What license is it under?
+License: MIT
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 6.1.1
