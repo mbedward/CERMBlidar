@@ -4,8 +4,9 @@
 \alias{prepare_tile}
 \title{Import and prepare a LAS tile for further processing}
 \usage{
-prepare_tile(path, drop.negative = TRUE, fields = "*", classes = c(2,
-  3, 4, 5, 6), flight.gap = 60, unzip.dir = NULL)
+prepare_tile(path, normalize.heights = TRUE, drop.negative = TRUE,
+  fields = "*", classes = c(2, 3, 4, 5, 6), flight.gap = 60,
+  unzip.dir = NULL)
 }
 \arguments{
 \item{path}{Path to the LAS tile to process. If the file extension is '.zip'
@@ -15,9 +16,15 @@ should contain only one LAS file (identified by having a 'las' or 'LAS'
 file extension) although it can also contain other files (e.g. HTML or XML
 documents).}
 
+\item{normalize.heights}{If TRUE (default), normalize all point heights to
+ground level as estimated from an elevation surface fitted by Delaunay
+triangulation. The original point heights are kept as a new data table
+column 'Zref'.}
+
 \item{drop.negative}{If TRUE, any points (other than ground points) whose
 heights are below ground level (as estimated by Delaunay interpolation of
-ground point heights) are discarded.}
+ground point heights) are discarded. This argument only applies if
+\code{normalize.heights = TRUE}.}
 
 \item{fields}{A string containing single-letter abbreviations for the data
 fields to include. The default is to return all fields. See

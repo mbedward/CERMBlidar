@@ -4,7 +4,8 @@
 \alias{remove_flightline_overlap}
 \title{Remove overlap between flight lines.}
 \usage{
-remove_flightline_overlap(las, classes = 5, res = 10, buffer = 100)
+remove_flightline_overlap(las, classes = 5, res = 10, buffer = 100,
+  npoints.min = 10000)
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
@@ -15,6 +16,11 @@ remove_flightline_overlap(las, classes = 5, res = 10, buffer = 100)
 
 \item{buffer}{Width of a buffer placed around the tile to ensure that the
 boundaries partitioning overlap areas extend beyond all points.}
+
+\item{npoints.min}{The minimum number of points in a flight line for it to be
+considered. Flight lines with fewer points are discarded. The default value
+(1e4) is intended to exclude flight lines that only appear at the margins
+of the tile.}
 }
 \value{
 A modified copy of the input LAS object.
@@ -34,5 +40,6 @@ We added this function because LIDAR data provided for New South Wales in
 than class 5 (high vegetation).
 }
 \seealso{
-\code{\link{check_flightlines}}, \code{\link{plot_flightlines}}
+\code{\link{get_flightline_info}}, \code{\link{check_flightlines}},
+  \code{\link{plot_flightlines}}
 }

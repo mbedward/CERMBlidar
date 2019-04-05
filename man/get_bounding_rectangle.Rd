@@ -12,7 +12,7 @@ get_bounding_rectangle(las, classes = "all", flightlines = "all")
 \item{classes}{Point classes to include: either a vector of integer class
 numbers or the string \code{'all'} (default).}
 
-\item{flightlineIDs}{Flight lines to include: either a vector of integer
+\item{flightlines}{Flight lines to include: either a vector of integer
 class numbers or the string \code{'all'} (default).}
 }
 \value{

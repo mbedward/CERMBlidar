@@ -4,22 +4,19 @@
 \alias{check_flightlines}
 \title{Check that the orientations of all flightlines match}
 \usage{
-check_flightlines(las, ratio = 1.5)
+check_flightlines(las)
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
-
-\item{ratio}{Value passed to \code{get_flightline_dir} for the minimum ratio
-of X and Y dimensions to be classified as either 'EW' or 'NS'.}
 }
 \value{
 \code{TRUE} if flight lines are consistent; \code{FALSE} otherwise.
 }
 \description{
 This is a convenience function that calls \code{\link{get_flightline_dir}}
-and checks that all flight lines have the same orientation and are either
-E-W or N-S.
+with default arguments and checks that all flight lines have the same
+orientation, either 'EW' or 'NS'.
 }
 \seealso{
-\code{\link{get_flightline_dir}}
+\code{\link{get_flightline_info}}
 }
