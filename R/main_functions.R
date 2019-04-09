@@ -29,6 +29,10 @@
 #' @param classes Point classifcations to include. Default is ground (2), vegetation
 #'   (3, 4, 5) and buildings (6).
 #'
+#' @param min.points The minimum number of points in a flight line for it to be
+#'   retained in the imported tile. The default value (1000) is intended to
+#'   exclude flight lines that only appear at the margins of the tile.
+#'
 #' @param flight.gap The minimum time gap (seconds) to use when assigning points
 #'   to flight lines.
 #'
@@ -47,6 +51,7 @@ prepare_tile <- function(path,
                          drop.negative = TRUE,
                          fields = "*",
                          classes = c(2, 3, 4, 5, 6),
+                         min.points = 1000,
                          flight.gap = 60,
                          unzip.dir = NULL) {
 
@@ -77,6 +82,11 @@ prepare_tile <- function(path,
 
   las <- lidR::readLAS(las.file, select = fields, filter = filtertxt)
 
+  # Check that the tile has some points (rarely we encouter empty tiles)
+  if (nrow(las@data) == 0) {
+    stop("Point cloud is empty in tile read from ", path)
+  }
+
   # Normalize point heights relative to ground level
   if (normalize.heights) {
     las <- lidR::lasnormalize(las, algorithm = lidR::tin())
@@ -91,6 +101,8 @@ prepare_tile <- function(path,
   # Add flight line indices based on GPS times for points
   #lidR::lasflightline(dt = flight.gap)
   las <- .tag_flight_line(las, dt = flight.gap)
+
+  if (min.points > 0) las <- filter_flightlines(las, min.points)
 
   if (zipped) {
     unlink(unz.files)
@@ -122,6 +134,40 @@ prepare_tile <- function(path,
 
 .is_zipped <- function(path) stringr::str_detect(path, "\\.zip\\s*$")
 
+
+#' Filter flight lines based on the number of points in each
+#'
+#' This function takes an input LAS tile and returns a copy from which any
+#' flight lines with less than a specified minimum number of points have been
+#' removed. It is used by \code{\link{prepare_tile}} but can also be called
+#' directly.
+#'
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#'
+#' @param min.points The minimum number of points in a flight line for it to be
+#'   retained. The default value (1e3) is intended to exclude flight lines that
+#'   only appear at the margins of the tile.
+#'
+#' @return A (possibly) modified copy of the input tile with any sparse flight
+#'   lines removed.
+#'
+#' @export
+#'
+filter_flightlines <- function(las, min.points = 1e3) {
+  counts <- c( table(las@data$flightlineID) )
+  ii <- counts >= min.points
+
+  if (!any(ii)) {
+    stop("No flightlines have the required minimum number of points")
+  }
+
+  ids.keep <- as.integer( names(counts[ii]) )
+
+  irecs <- las@data$flightlineID %in% ids.keep
+  las@data <- las@data[irecs, ]
+
+  las
+}
 
 #' Check that the orientations of all flightlines match
 #'
@@ -178,18 +224,18 @@ check_flightlines <- function(las) {
 #'   value is 15 degrees and the valid range of values is
 #'   \code{0 < angular.tol <= 30}.
 #'
-#' @param ratio.min The minimum ratio (default = 1.2) of the longest to the
+#' @param min.ratio The minimum ratio (default = 1.2) of the longest to the
 #'   shortest side of a flight line bounding rectangle for orientation to be
 #'   either 'NS' or 'EW'. Must be a value greater than 1.1. For flight lines
 #'   with more equilateral bounding rectangles, orientation is determined by
 #'   examining point GPS times (see Details).
 #'
-#' @param npoints.min The minimum number of points in a flight line for it to
-#'   be included. Set to zero to include all flightlines. The default value
-#'   (1e4) is intended to exclude flight lines that only appear at the margins
-#'   of the tile. In the case that all flight lines are included, bounding
-#'   rectangle and orientations will not be defined for those with very few
-#'   points.
+#' @param min.points The minimum number of points in a flight line for it to be
+#'   included. Set to zero to include all flightlines. The default value (1000)
+#'   is intended to exclude flight lines that only appear at the margins of the
+#'   tile. Normally, such sparse flight lines will be removed when importing the
+#'   tile. In the case that all flight lines are included, bounding rectangles
+#'   and orientations will not be defined for those with very few points.
 #'
 #' @return A spatial data frame (class \code{sf}) with columns: flightlineID,
 #'   xlen, ylen, orientation and geometry (minimum bounding rectangle of flight
@@ -203,11 +249,11 @@ check_flightlines <- function(las) {
 #'
 get_flightline_info <- function(las,
                                 angular.tol = 15,
-                                ratio.min = 1.2,
-                                npoints.min = 1e4) {
+                                min.ratio = 1.2,
+                                min.points = 1000) {
 
   stopifnot(angular.tol > 0.0, angular.tol <= 30)
-  stopifnot(ratio.min > 1.1)
+  stopifnot(min.ratio > 1.1)
 
   ids <- sort(unique(las@data$flightlineID))
 
@@ -218,13 +264,13 @@ get_flightline_info <- function(las,
   total.count <- sum(counts.all)
 
   # Check for flightlines with an insufficient number of points
-  n <- sum(counts.all < npoints.min)
+  n <- sum(counts.all < min.points)
   if (n == 0) {
     counts <- counts.all
     ids.fewpoints <- integer(0)
 
   } else {
-    ids.fewpoints <- ids[c(counts.all) < npoints.min]
+    ids.fewpoints <- ids[c(counts.all) < min.points]
     ids <- setdiff(ids, ids.fewpoints)
 
     if (length(ids) == 0) stop("No flight lines with sufficient points")
@@ -332,7 +378,7 @@ get_flightline_info <- function(las,
 
     dplyr::mutate(orientation = dplyr::case_when(
       orientation.initial == "XX" ~ orientation.initial,
-      ratio.sidelen > ratio.min ~ orientation.initial,
+      ratio.sidelen > min.ratio ~ orientation.initial,
       TRUE ~ orientation.time
     )) %>%
 
@@ -525,10 +571,11 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #' @param buffer Width of a buffer placed around the tile to ensure that the
 #'   boundaries partitioning overlap areas extend beyond all points.
 #'
-#' @param npoints.min The minimum number of points in a flight line for it to be
+#' @param min.points The minimum number of points in a flight line for it to be
 #'   considered. Flight lines with fewer points are discarded. The default value
-#'   (1e4) is intended to exclude flight lines that only appear at the margins
-#'   of the tile.
+#'   (1000) is intended to exclude flight lines that only appear at the margins
+#'   of the tile. Normally, such sparse flight lines will be removed when
+#'   importing the tile.
 #'
 #' @return A modified copy of the input LAS object.
 #'
@@ -539,7 +586,10 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #'
 #' @export
 #'
-remove_flightline_overlap <- function(las, classes = 5, res = 10, buffer = 100, npoints.min = 1e4) {
+remove_flightline_overlap <- function(las,
+                                      classes = 5, res = 10, buffer = 100,
+                                      min.points = 1000) {
+
   flines <- sort(unique(las@data$flightlineID))
   nlines <- length(flines)
 
@@ -550,11 +600,11 @@ remove_flightline_overlap <- function(las, classes = 5, res = 10, buffer = 100, 
 
   # Get flight line info (bounding rectangles etc) and check for
   # consistent orientation
-  fline.dat <- get_flightline_info(las, npoints.min = npoints.min)
+  fline.dat <- get_flightline_info(las, min.points = min.points)
 
   # Check that each flight line has sufficient points
   fline.dat <- fline.dat %>%
-    dplyr::mutate(included = npoints >= npoints.min)
+    dplyr::mutate(included = npoints >= min.points)
 
   if (!any(fline.dat$included)) {
     stop("No flight lines have sufficient points.")

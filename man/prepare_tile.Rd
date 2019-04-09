@@ -5,8 +5,8 @@
 \title{Import and prepare a LAS tile for further processing}
 \usage{
 prepare_tile(path, normalize.heights = TRUE, drop.negative = TRUE,
-  fields = "*", classes = c(2, 3, 4, 5, 6), flight.gap = 60,
-  unzip.dir = NULL)
+  fields = "*", classes = c(2, 3, 4, 5, 6), min.points = 1000,
+  flight.gap = 60, unzip.dir = NULL)
 }
 \arguments{
 \item{path}{Path to the LAS tile to process. If the file extension is '.zip'
@@ -32,6 +32,10 @@ fields to include. The default is to return all fields. See
 
 \item{classes}{Point classifcations to include. Default is ground (2), vegetation
 (3, 4, 5) and buildings (6).}
+
+\item{min.points}{The minimum number of points in a flight line for it to be
+retained in the imported tile. The default value (1000) is intended to
+exclude flight lines that only appear at the margins of the tile.}
 
 \item{flight.gap}{The minimum time gap (seconds) to use when assigning points
 to flight lines.}

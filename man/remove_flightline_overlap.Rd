@@ -5,7 +5,7 @@
 \title{Remove overlap between flight lines.}
 \usage{
 remove_flightline_overlap(las, classes = 5, res = 10, buffer = 100,
-  npoints.min = 10000)
+  min.points = 1000)
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
@@ -17,10 +17,11 @@ remove_flightline_overlap(las, classes = 5, res = 10, buffer = 100,
 \item{buffer}{Width of a buffer placed around the tile to ensure that the
 boundaries partitioning overlap areas extend beyond all points.}
 
-\item{npoints.min}{The minimum number of points in a flight line for it to be
+\item{min.points}{The minimum number of points in a flight line for it to be
 considered. Flight lines with fewer points are discarded. The default value
-(1e4) is intended to exclude flight lines that only appear at the margins
-of the tile.}
+(1000) is intended to exclude flight lines that only appear at the margins
+of the tile. Normally, such sparse flight lines will be removed when
+importing the tile.}
 }
 \value{
 A modified copy of the input LAS object.

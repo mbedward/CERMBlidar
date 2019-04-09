@@ -4,8 +4,8 @@
 \alias{get_flightline_info}
 \title{Get summary information for flight line extents}
 \usage{
-get_flightline_info(las, angular.tol = 15, ratio.min = 1.2,
-  npoints.min = 10000)
+get_flightline_info(las, angular.tol = 15, min.ratio = 1.2,
+  min.points = 1000)
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
@@ -16,18 +16,18 @@ bounding rectangle and the horizontal (X coordinate axis). The default
 value is 15 degrees and the valid range of values is
 \code{0 < angular.tol <= 30}.}
 
-\item{ratio.min}{The minimum ratio (default = 1.2) of the longest to the
+\item{min.ratio}{The minimum ratio (default = 1.2) of the longest to the
 shortest side of a flight line bounding rectangle for orientation to be
 either 'NS' or 'EW'. Must be a value greater than 1.1. For flight lines
 with more equilateral bounding rectangles, orientation is determined by
 examining point GPS times (see Details).}
 
-\item{npoints.min}{The minimum number of points in a flight line for it to
-be included. Set to zero to include all flightlines. The default value
-(1e4) is intended to exclude flight lines that only appear at the margins
-of the tile. In the case that all flight lines are included, bounding
-rectangle and orientations will not be defined for those with very few
-points.}
+\item{min.points}{The minimum number of points in a flight line for it to be
+included. Set to zero to include all flightlines. The default value (1000)
+is intended to exclude flight lines that only appear at the margins of the
+tile. Normally, such sparse flight lines will be removed when importing the
+tile. In the case that all flight lines are included, bounding rectangles
+and orientations will not be defined for those with very few points.}
 }
 \value{
 A spatial data frame (class \code{sf}) with columns: flightlineID,
