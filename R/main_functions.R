@@ -253,7 +253,7 @@ get_flightline_info <- function(las,
   sfdat <- sf::st_sf(flightlineID = ids, geometry = geoms)
 
 
-  rects <- bind_rows(rects) %>%
+  rects <- dplyr::bind_rows(rects) %>%
     dplyr::left_join(counts, by = "flightlineID") %>%
 
     dplyr::group_by(flightlineID) %>%
@@ -306,11 +306,16 @@ get_flightline_info <- function(las,
 
     dplyr::mutate(dtime = gpstime - min(gpstime)) %>%
 
-    dplyr::sample_n(min(1000, n())) %>%
-
     dplyr::do({
-      model <- lm(dtime ~ X + Y, data = .)
-      pdat <- expand.grid(X = range(.$X), Y = range(.$Y)) %>% dplyr::arrange(X, Y)
+      nrecs <- nrow(.)
+
+      if (nrecs > 1000) ii <- sample.int(nrecs, 1000)
+      else ii <- 1:nrecs
+
+      dat <- .[ii, ]
+
+      model <- lm(dtime ~ X + Y, data = dat)
+      pdat <- expand.grid(X = range(dat$X), Y = range(dat$Y)) %>% dplyr::arrange(X, Y)
       p <- predict(model, newdata = pdat)
       dtX <- abs(p[1] - p[3])
       dtY <- abs(p[1] - p[2])
@@ -549,7 +554,7 @@ remove_flightline_overlap <- function(las, classes = 5, res = 10, buffer = 100, 
 
   # Check that each flight line has sufficient points
   fline.dat <- fline.dat %>%
-    mutate(included = npoints >= npoints.min)
+    dplyr::mutate(included = npoints >= npoints.min)
 
   if (!any(fline.dat$included)) {
     stop("No flight lines have sufficient points.")
