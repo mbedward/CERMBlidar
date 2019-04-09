@@ -823,7 +823,7 @@ get_scan_times <- function(las, by) {
 #'
 is_prepared_tile <- function(las) {
   if (!inherits(las, "LAS")) stop("Object is not a LAS tile")
-  all(c("zref", "flightlineID") %in% tolower(colnames(las@data)))
+  all(c("zref", "flightlineid") %in% tolower(colnames(las@data)))
 }
 
 
