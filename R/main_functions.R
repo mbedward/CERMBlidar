@@ -366,7 +366,7 @@ get_flightline_info <- function(las,
       dtX <- abs(p[1] - p[3])
       dtY <- abs(p[1] - p[2])
 
-      otime <- ifelse(dtY > 10 * dtX, "NS", ifelse(dtX > 100 * dtY, "EW", "XX"))
+      otime <- ifelse(dtY > 2 * dtX, "NS", ifelse(dtX > 2 * dtY, "EW", "XX"))
 
       data.frame(dtX, dtY, orientation.time = otime,
                  stringsAsFactors = FALSE)
@@ -773,7 +773,9 @@ remove_flightline_overlap <- function(las,
 #'
 #' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
-#' @param npts Number of points to sample from the LAS object (default: 5000).
+#' @param npts Number of points to draw (default: 5000). The subset of
+#'   points is selected to cover all combinations of flight line and
+#'   point class.
 #'
 #' @param shape Point shape, specified as an integer code as for gpplot and
 #'   R base plot.
@@ -797,10 +799,21 @@ remove_flightline_overlap <- function(las,
 #' @export
 #'
 plot_flightlines <- function(las, npts = 5000, shape = 16, size = 1) {
+  prop <- min(1.0, 5000 / nrow(las@data))
+
   if ("flightlineID" %in% colnames(las@data)) {
     dat <- las@data %>%
       as.data.frame() %>%
-      dplyr::sample_n(npts) %>%
+      dplyr::group_by(flightlineID, Classification) %>%
+
+      dplyr::do({
+        N <- nrow(.)
+        n <- max(1, prop * N)
+        .[sample.int(N, n), ]
+      }) %>%
+
+      dplyr::ungroup() %>%
+
       dplyr::mutate(flightline = factor(flightlineID))
 
     ggplot(data = dat, aes(x = X, y = Y)) +

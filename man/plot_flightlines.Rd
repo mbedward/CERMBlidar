@@ -9,7 +9,9 @@ plot_flightlines(las, npts = 5000, shape = 16, size = 1)
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
 
-\item{npts}{Number of points to sample from the LAS object (default: 5000).}
+\item{npts}{Number of points to draw (default: 5000). The subset of
+points is selected to cover all combinations of flight line and
+point class.}
 
 \item{shape}{Point shape, specified as an integer code as for gpplot and
 R base plot.}
