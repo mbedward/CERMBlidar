@@ -5,7 +5,7 @@
 \title{Remove overlap between flight lines.}
 \usage{
 remove_flightline_overlap(las, classes = 5, res = 10, buffer = 100,
-  min.points = 1000)
+  angular.tol = 15, min.points = 1000)
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
@@ -16,6 +16,12 @@ remove_flightline_overlap(las, classes = 5, res = 10, buffer = 100,
 
 \item{buffer}{Width of a buffer placed around the tile to ensure that the
 boundaries partitioning overlap areas extend beyond all points.}
+
+\item{angular.tol}{The angular tolerance in degrees to apply when determining
+flight line orientation. It refers to the angle between the longest side of
+bounding rectangle and the horizontal (X coordinate axis). The default
+value is 15 degrees and the valid range of values is
+\code{0 < angular.tol <= 30}.}
 
 \item{min.points}{The minimum number of points in a flight line for it to be
 considered. Flight lines with fewer points are discarded. The default value

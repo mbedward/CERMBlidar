@@ -571,6 +571,12 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #' @param buffer Width of a buffer placed around the tile to ensure that the
 #'   boundaries partitioning overlap areas extend beyond all points.
 #'
+#' @param angular.tol The angular tolerance in degrees to apply when determining
+#'   flight line orientation. It refers to the angle between the longest side of
+#'   bounding rectangle and the horizontal (X coordinate axis). The default
+#'   value is 15 degrees and the valid range of values is
+#'   \code{0 < angular.tol <= 30}.
+#'
 #' @param min.points The minimum number of points in a flight line for it to be
 #'   considered. Flight lines with fewer points are discarded. The default value
 #'   (1000) is intended to exclude flight lines that only appear at the margins
@@ -588,6 +594,7 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #'
 remove_flightline_overlap <- function(las,
                                       classes = 5, res = 10, buffer = 100,
+                                      angular.tol = 15,
                                       min.points = 1000) {
 
   flines <- sort(unique(las@data$flightlineID))
@@ -600,7 +607,9 @@ remove_flightline_overlap <- function(las,
 
   # Get flight line info (bounding rectangles etc) and check for
   # consistent orientation
-  fline.dat <- get_flightline_info(las, min.points = min.points)
+  fline.dat <- get_flightline_info(las,
+                                   min.points = min.points,
+                                   angular.tol = angular.tol)
 
   # Check that each flight line has sufficient points
   fline.dat <- fline.dat %>%
