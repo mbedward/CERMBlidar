@@ -569,10 +569,12 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #'
 #' @param classes Vector of one or more integer codes for point classes to consider.
 #'
-#' @param res Raster cell size to use when delineating overlap areas.
+#' @param res Raster cell size to use when identifying overlap regions. Default
+#'   value is 10 which assumes that map units are metres.
 #'
-#' @param buffer Width of a buffer placed around the tile to ensure that the
-#'   boundaries partitioning overlap areas extend beyond all points.
+#' @param buffer Width of a buffer (map units) placed around the tile to ensure
+#'   that the boundaries partitioning overlap areas extend beyond all points.
+#'   Default value is 100 which assumes map units are metres.
 #'
 #' @param ... Additional arguments to pass to \code{link{get_flightline_info}}
 #'   when checking for consistent north-south or east-west orientation.
@@ -593,7 +595,7 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #' @export
 #'
 remove_flightline_overlap <- function(las,
-                                      classes = 5, res = 10, buffer = 100,
+                                      classes = 3:5, res = 10, buffer = 100,
                                       min.points = 1000,
                                       ...) {
 

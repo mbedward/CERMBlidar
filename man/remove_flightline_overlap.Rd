@@ -4,7 +4,7 @@
 \alias{remove_flightline_overlap}
 \title{Remove overlap between flight lines.}
 \usage{
-remove_flightline_overlap(las, classes = 5, res = 10, buffer = 100,
+remove_flightline_overlap(las, classes = 3:5, res = 10, buffer = 100,
   min.points = 1000, ...)
 }
 \arguments{
@@ -12,10 +12,12 @@ remove_flightline_overlap(las, classes = 5, res = 10, buffer = 100,
 
 \item{classes}{Vector of one or more integer codes for point classes to consider.}
 
-\item{res}{Raster cell size to use when delineating overlap areas.}
+\item{res}{Raster cell size to use when identifying overlap regions. Default
+value is 10 which assumes that map units are metres.}
 
-\item{buffer}{Width of a buffer placed around the tile to ensure that the
-boundaries partitioning overlap areas extend beyond all points.}
+\item{buffer}{Width of a buffer (map units) placed around the tile to ensure
+that the boundaries partitioning overlap areas extend beyond all points.
+Default value is 100 which assumes map units are metres.}
 
 \item{min.points}{The minimum number of points in a flight line for it to be
 considered. Flight lines with fewer points are discarded. The default value
