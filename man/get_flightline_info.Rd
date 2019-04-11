@@ -4,7 +4,7 @@
 \alias{get_flightline_info}
 \title{Get summary information for flight line extents}
 \usage{
-get_flightline_info(las, angular.tol = 15, min.ratio = 1.2,
+get_flightline_info(las, angular.tol = 25, min.ratio = 1.2,
   min.points = 1000)
 }
 \arguments{
@@ -13,7 +13,7 @@ get_flightline_info(las, angular.tol = 15, min.ratio = 1.2,
 \item{angular.tol}{The angular tolerance in degrees to apply when determining
 flight line orientation. It refers to the angle between the longest side of
 bounding rectangle and the horizontal (X coordinate axis). The default
-value is 15 degrees and the valid range of values is
+value is 25 degrees and the valid range of values is
 \code{0 < angular.tol <= 30}.}
 
 \item{min.ratio}{The minimum ratio (default = 1.2) of the longest to the

@@ -4,10 +4,13 @@
 \alias{check_flightlines}
 \title{Check that the orientations of all flightlines match}
 \usage{
-check_flightlines(las)
+check_flightlines(las, ...)
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
+
+\item{...}{Additional arguments to pass to \code{\link{get_flightline_info}}
+including \code{angular.tol}.}
 }
 \value{
 \code{TRUE} if flight lines are consistent; \code{FALSE} otherwise.

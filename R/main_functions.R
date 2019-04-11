@@ -177,14 +177,17 @@ filter_flightlines <- function(las, min.points = 1e3) {
 #'
 #' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
+#' @param ... Additional arguments to pass to \code{\link{get_flightline_info}}
+#'   including \code{angular.tol}.
+#'
 #' @return \code{TRUE} if flight lines are consistent; \code{FALSE} otherwise.
 #'
 #' @seealso \code{\link{get_flightline_info}}
 #'
 #' @export
 #'
-check_flightlines <- function(las) {
-  dat <- get_flightline_info(las)
+check_flightlines <- function(las, ...) {
+  dat <- get_flightline_info(las, ...)
   o <- na.omit(dat$orientation)
 
   if (length(o) == 0) FALSE
@@ -221,7 +224,7 @@ check_flightlines <- function(las) {
 #' @param angular.tol The angular tolerance in degrees to apply when determining
 #'   flight line orientation. It refers to the angle between the longest side of
 #'   bounding rectangle and the horizontal (X coordinate axis). The default
-#'   value is 15 degrees and the valid range of values is
+#'   value is 25 degrees and the valid range of values is
 #'   \code{0 < angular.tol <= 30}.
 #'
 #' @param min.ratio The minimum ratio (default = 1.2) of the longest to the
@@ -248,7 +251,7 @@ check_flightlines <- function(las) {
 #' @export
 #'
 get_flightline_info <- function(las,
-                                angular.tol = 15,
+                                angular.tol = 25,
                                 min.ratio = 1.2,
                                 min.points = 1000) {
 
@@ -571,11 +574,8 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #' @param buffer Width of a buffer placed around the tile to ensure that the
 #'   boundaries partitioning overlap areas extend beyond all points.
 #'
-#' @param angular.tol The angular tolerance in degrees to apply when determining
-#'   flight line orientation. It refers to the angle between the longest side of
-#'   bounding rectangle and the horizontal (X coordinate axis). The default
-#'   value is 15 degrees and the valid range of values is
-#'   \code{0 < angular.tol <= 30}.
+#' @param ... Additional arguments to pass to \code{link{get_flightline_info}}
+#'   when checking for consistent north-south or east-west orientation.
 #'
 #' @param min.points The minimum number of points in a flight line for it to be
 #'   considered. Flight lines with fewer points are discarded. The default value
@@ -594,8 +594,8 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #'
 remove_flightline_overlap <- function(las,
                                       classes = 5, res = 10, buffer = 100,
-                                      angular.tol = 15,
-                                      min.points = 1000) {
+                                      min.points = 1000,
+                                      ...) {
 
   flines <- sort(unique(las@data$flightlineID))
   nlines <- length(flines)
@@ -607,9 +607,7 @@ remove_flightline_overlap <- function(las,
 
   # Get flight line info (bounding rectangles etc) and check for
   # consistent orientation
-  fline.dat <- get_flightline_info(las,
-                                   min.points = min.points,
-                                   angular.tol = angular.tol)
+  fline.dat <- get_flightline_info(las, min.points = min.points, ...)
 
   # Check that each flight line has sufficient points
   fline.dat <- fline.dat %>%
@@ -713,16 +711,14 @@ remove_flightline_overlap <- function(las,
   colnames(mids) <- c("x", "y", "n")
 
   # Check if there are many missing values for mid-point ordinates.
-  # This happens when one flight line is only present at the edge of a
-  # tile. In this case we just want to discard the points for the
-  # minority flight line.
+  # This happens when there is no or very little overlap between
+  # the flight lines, or where one line only spans are small part
+  # of the tile. In either case, we will leave the data as-is.
+  #
   is.na.row <- apply(mids, 1, function(xs) any(is.na(xs)))
   if (sum(is.na.row) > nrow(mids) / 2) {
-    # Identify the minority flightline
-    fminor <- ifelse(sum(xyf[,3] == fline1) < nrow(xyf)/2, fline1, fline2)
-
-    # Flag points for removal
-    remove <- xyf[,3] == fminor
+    # No need to remove any points
+    remove <- rep(FALSE, nrow(xyf))
 
   } else {
     # Found an adequate number of overlap mid-points.
