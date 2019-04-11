@@ -83,8 +83,9 @@ prepare_tile <- function(path,
   las <- lidR::readLAS(las.file, select = fields, filter = filtertxt)
 
   # Check that the tile has some points (rarely we encouter empty tiles)
-  if (nrow(las@data) == 0) {
-    stop("Point cloud is empty in tile read from ", path)
+  if (is_empty_tile(las)) {
+    warning("Point cloud is empty in tile: ", path)
+    return(las)
   }
 
   # Normalize point heights relative to ground level
@@ -257,6 +258,22 @@ get_flightline_info <- function(las,
 
   stopifnot(angular.tol > 0.0, angular.tol <= 30)
   stopifnot(min.ratio > 1.1)
+
+  if (is_empty_tile(las)) {
+    warning("Point cloud is empty in tile")
+
+    out <- sf::st_sf(
+      flightlineID = NA_integer_,
+      angle = NA_real_,
+      ratio.sidelen = NA_real_,
+      orientation = "XX",
+      npoints = 0,
+      ppoints = 0,
+      geometry = sf::st_sfc( sf::st_polygon() )
+    )
+
+    return(out)
+  }
 
   ids <- sort(unique(las@data$flightlineID))
 
@@ -882,8 +899,11 @@ get_scan_times <- function(las, by) {
 #' Check whether a LAS tile object has been prepared
 #'
 #' When a LAS tile is imported using the \code{\link{prepare_tile}} function,
-#' point heights are normalized relative to ground elevation. This adds an
-#' extra column (Zref) to the LAS data table.
+#' point heights are normalized relative to ground elevation and flight lines
+#' are identified. This results in two extra columns (Zref and flightlineID)
+#' being added to the LAS data table. This function checks that these two
+#' columns are present. It also checks that the tile has point data, returning
+#' FALSE if the point cloud is empty.
 #'
 #' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
@@ -893,7 +913,30 @@ get_scan_times <- function(las, by) {
 #'
 is_prepared_tile <- function(las) {
   if (!inherits(las, "LAS")) stop("Object is not a LAS tile")
-  all(c("zref", "flightlineid") %in% tolower(colnames(las@data)))
+
+  if (is_empty_tile(las)) {
+    FALSE
+  } else {
+    all(c("zref", "flightlineid") %in% tolower(colnames(las@data)))
+  }
+}
+
+
+
+#' Check whether a LAS tile has an empty point cloud
+#'
+#' Checks whether a point cloud is empty, i.e. there are zero rows in the LAS
+#' object's data table.
+#'
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#'
+#' @return TRUE if the point cloud is empty.
+#'
+#' @export
+#'
+is_empty_tile <- function(las) {
+  if (!inherits(las, "LAS")) stop("Object is not a LAS tile")
+  nrow(las@data) == 0
 }
 
 

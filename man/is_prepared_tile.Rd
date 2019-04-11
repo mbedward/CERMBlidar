@@ -14,6 +14,9 @@ TRUE if the tile has been prepared or FALSE otherwise.
 }
 \description{
 When a LAS tile is imported using the \code{\link{prepare_tile}} function,
-point heights are normalized relative to ground elevation. This adds an
-extra column (Zref) to the LAS data table.
+point heights are normalized relative to ground elevation and flight lines
+are identified. This results in two extra columns (Zref and flightlineID)
+being added to the LAS data table. This function checks that these two
+columns are present. It also checks that the tile has point data, returning
+FALSE if the point cloud is empty.
 }
