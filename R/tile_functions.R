@@ -1,16 +1,45 @@
+#' Get names of mandatory input fields for LAS tiles
+#'
+#' Returns a named vector of character strings, where names are standard, single
+#' character field abbreviations (as understood by \code{prepare_tile} and
+#' \code{lidR::readLAS}) and values are field names. These are the fields that
+#' must be included when importing a tile with \code{prepare_tile}.
+#'
+#' @return A named vector of lower case field names where names are standard,
+#'   single character field abbreviations.
+#'
+#' @seealso \code{\link{prepare_tile}}
+#'
+#' @export
+#'
+mandatory_input_fields <- function() {
+  c('x' = "x",
+    'y' = "y",
+    'z' = "z",
+    't' = "gpstime",
+    'c' = "classification")
+}
+
+
 #' Import and prepare a LAS tile for further processing
 #'
 #' This function imports data from a LAS file and prepares it for further
 #' processing. A surface model is first fitted to ground points (class 2) by
 #' Delaunay triangulation and the elevation of all points is then adjusted to be
-#' relative to ground level.
+#' relative to ground level. Flight lines are identified based on GPS times for
+#' points and, optionally, any flight lines with less than a threshold number
+#' of points are discarded.
 #'
-#' @param path Path to the LAS tile to process. If the file extension is '.zip'
-#'   it is assumed to be a compressed LAS file that will be unzipped before
-#'   processing (see the \code{unzip.dir} parameter below). A compressed file
-#'   should contain only one LAS file (identified by having a 'las' or 'LAS'
-#'   file extension) although it can also contain other files (e.g. HTML or XML
-#'   documents).
+#' @note This function does not modify the input LAS file. You must write the
+#'   prepared tile to disk explicitly (e.g. using the \code{lidR} package
+#'   function \code{\link[lidR]{writeLAS}}).
+#'
+#' @param path Path to the LAS or LAZ format file to process. If the file
+#'   extension is '.zip' it is assumed to be a compressed LAS file that will be
+#'   unzipped before processing (see the \code{unzip.dir} parameter below). A
+#'   compressed file should contain only one LAS file (identified by having a
+#'   'las' or 'LAS' file extension) although it can also contain other files
+#'   (e.g. HTML or XML documents).
 #'
 #' @param normalize.heights If TRUE (default), normalize all point heights to
 #'   ground level as estimated from an elevation surface fitted by Delaunay
@@ -19,15 +48,18 @@
 #'
 #' @param drop.negative If TRUE, any points (other than ground points) whose
 #'   heights are below ground level (as estimated by Delaunay interpolation of
-#'   ground point heights) are discarded. This argument only applies if
-#'   \code{normalize.heights = TRUE}.
+#'   ground point heights) are adjusted to have a height value of zero. This
+#'   argument only applies if \code{normalize.heights = TRUE}.
 #'
-#' @param fields A string containing single-letter abbreviations for the data
-#'   fields to include. The default is to return all fields. See
-#'   \code{\link[lidR]{readLAS}} for details of the available abbreviations.
+#' @param fields Either \code{NULL} (default) to include all data fields, or a
+#'   character string containing single-letter abbreviations for selected
+#'   fields. See \code{\link[lidR]{readLAS}} for details of the available,
+#'   single-letter field abbreviations.
 #'
-#' @param classes Point classifcations to include. Default is ground (2), vegetation
-#'   (3, 4, 5) and buildings (6).
+#' @param classes Point classes to include. Default is NULL to include
+#'   all classes. Specify a subset of classes as a vector of integers. For
+#'   example: \code{classes = 2:6} would include ground (2), vegetation
+#'   (3, 4, 5) and building (6) points.
 #'
 #' @param min.points The minimum number of points in a flight line for it to be
 #'   retained in the imported tile. The default value (1000) is intended to
@@ -49,8 +81,8 @@
 prepare_tile <- function(path,
                          normalize.heights = TRUE,
                          drop.negative = TRUE,
-                         fields = "*",
-                         classes = c(2, 3, 4, 5, 6),
+                         fields = NULL,
+                         classes = NULL,
                          min.points = 1000,
                          flight.gap = 60,
                          unzip.dir = NULL) {
@@ -59,6 +91,9 @@ prepare_tile <- function(path,
     warning("Presently only one path element is supported. Ignoring extra elements.")
     path <- path[1]
   }
+
+  if (is.null(fields)) fields <- "*"
+  else fields <- .as_scalar(fields)
 
   zipped <- .is_zipped(path)
   if (zipped) {
@@ -71,14 +106,32 @@ prepare_tile <- function(path,
     las.file <- stringr::str_subset(unz.files, "\\.(las|LAS)$")
     n <- length(las.file)
 
-    if (n == 0) stop("zip file does not contain a file with extension las or LAS")
-    if (n > 1) stop("zip file contains multiple LAS files")
+    if (n == 0) {
+      warning("zip file does not contain a file with extension las or LAS")
+      return(NULL)
+    }
+    else if (n > 1) {
+      warning("zip file contains multiple LAS files")
+      return(NULL)
+    }
 
   } else {
     las.file <- path
   }
 
-  filtertxt <- paste("-keep_class", paste(classes, collapse = " "))
+  if (fields != "*") {
+    # Check all mandatory fields are included and add any that were missed
+    fields <- tolower(fields)
+    must.haves <- names(mandatory_input_fields())
+    found <- stringr::str_detect(fields, must.haves)
+    if (any(!found)) {
+      must.haves <- paste0(must.haves[!found], collapse="")
+      fields <- paste0(fields, must.haves, collapse = "")
+    }
+  }
+
+  if (is.null(classes)) filtertxt <- ""
+  else filtertxt <- paste("-keep_class", paste(classes, collapse = " "))
 
   las <- lidR::readLAS(las.file, select = fields, filter = filtertxt)
 
@@ -92,42 +145,21 @@ prepare_tile <- function(path,
   if (normalize.heights) {
     las <- lidR::lasnormalize(las, algorithm = lidR::tin())
 
-    # remove negative heights
+    # set any negative ground heights to zero
     if (drop.negative) {
-      ii <- las@data$Classification == 2 | las@data$Z > 0
-      las@data <- las@data[ ii, ]
+      ii <- las@data$Z < 0 & las@data$Classification != 2
+      las@data[ ii, "Z" ] <- 0
     }
   }
 
   # Add flight line indices based on GPS times for points
-  #lidR::lasflightline(dt = flight.gap)
-  las <- .tag_flight_line(las, dt = flight.gap)
+  las <- lidR::lasflightline(las, dt = flight.gap)
 
   if (min.points > 0) las <- filter_flightlines(las, min.points)
 
   if (zipped) {
     unlink(unz.files)
   }
-
-  las
-}
-
-
-# This function is called by prepare_tile to identify flight lines based
-# on point GPS times. The function lidR::lasflightline does this but it
-# was broken in version 2.0.1 of the package, hence this work-around.
-.tag_flight_line <- function(las, dt = 30) {
-  x <- data.frame(t = las@data[, "gpstime"])
-  x$i <- 1:nrow(x)
-  x <- x[order(x$t),]
-
-  b <- c(TRUE, diff(x$t) > dt)
-  b[1] <- TRUE
-  x$flightlineID <- cumsum(b)
-
-  x <- x[order(x$i),]
-
-  las@data$flightlineID <- x$flightlineID
 
   las
 }
@@ -141,7 +173,8 @@ prepare_tile <- function(path,
 #' This function takes an input LAS tile and returns a copy from which any
 #' flight lines with less than a specified minimum number of points have been
 #' removed. It is used by \code{\link{prepare_tile}} but can also be called
-#' directly.
+#' directly. If points are dropped, the header of the returned LAS object is
+#' updated.
 #'
 #' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
@@ -156,19 +189,53 @@ prepare_tile <- function(path,
 #'
 filter_flightlines <- function(las, min.points = 1e3) {
   counts <- c( table(las@data$flightlineID) )
-  ii <- counts >= min.points
+  ikeep <- counts >= min.points
 
-  if (!any(ii)) {
+  if (!any(ikeep)) {
     stop("No flightlines have the required minimum number of points")
   }
 
-  ids.keep <- as.integer( names(counts[ii]) )
+  if (all(ikeep)) {
+    # nothing to do
+  } else {
+    # Identify points to keep and reduce las data to just
+    # those records
+    ids.keep <- as.integer( names(counts[ikeep]) )
+    rec.keep <- las@data$flightlineID %in% ids.keep
+    las@data <- las@data[irecs, ]
 
-  irecs <- las@data$flightlineID %in% ids.keep
-  las@data <- las@data[irecs, ]
+    # Update las header
+    las <- update_tile_header(las)
+  }
 
   las
 }
+
+
+#' Calculate average point density for a tile
+#'
+#' This function counts the points in the tile and divides by the total area
+#' (based on the applicable distance units, e.g. square metres). For a tile with
+#' average point density \code{p}, an estimate of the average distance between
+#' neighbouring points, disregarding edge effects, is \code{0.5 / sqrt(p)}.
+#'
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#'
+#' @return The average point density as a single value.
+#'
+#' @export
+#'
+get_point_density <- function(las) {
+  np <- nrow(las@data)
+  if (np == 0) stop("The tile is empty")
+
+  dx <- diff(range(las@data$X))
+  dy <- diff(range(las@data$Y))
+
+  area <- dx * dy
+  np / area
+}
+
 
 #' Check that the orientations of all flightlines match
 #'
@@ -293,7 +360,10 @@ get_flightline_info <- function(las,
     ids.fewpoints <- ids[c(counts.all) < min.points]
     ids <- setdiff(ids, ids.fewpoints)
 
-    if (length(ids) == 0) stop("No flight lines with sufficient points")
+    if (length(ids) == 0) {
+      warning("No flight lines with sufficient points")
+      return(NULL)
+    }
 
     counts <- counts.all[ as.character(ids) ]
   }
@@ -633,13 +703,17 @@ remove_flightline_overlap <- function(las,
     dplyr::mutate(included = npoints >= min.points)
 
   if (!any(fline.dat$included)) {
-    stop("No flight lines have sufficient points.")
+    warning("No flight lines have sufficient points. LAS object is unchanged.")
+    return(las)
   }
 
   # Remove points for flight lines with too few points
   ids <- fline.dat$flightlineID[ fline.dat$included ]
   ii <- las@data$flightlineID %in% ids
-  las@data <- las@data[ii, ]
+  if (!all(ii)) {
+    las@data <- las@data[ii, ]
+    las <- update_tile_header(las)
+  }
 
   fline.dat <- dplyr::filter(fline.dat, included)
 
@@ -703,9 +777,12 @@ remove_flightline_overlap <- function(las,
   }
 
   # Remove flagged points from tile.
-  remove.recs <- irecs[to.remove]
-  keep.recs <- setdiff(1:nrow(las@data), remove.recs)
-  las@data <- las@data[keep.recs, ]
+  if (any(to.remove)) {
+    remove.recs <- irecs[to.remove]
+    keep.recs <- setdiff(1:nrow(las@data), remove.recs)
+    las@data <- las@data[keep.recs, ]
+    las <- update_tile_header(las)
+  }
 
   las
 }
@@ -857,12 +934,12 @@ plot_flightlines <- function(las, npts = 5000, shape = 16, size = 1) {
 
 #' Get scan times for a LAS tile
 #'
-#' The data table for an imported LAS tile (a \code{las} object) includes a
-#' \code{gpstime} column which gives, for each point, scan time expressed as
-#' \code{S - 1e9} where \code{S} is the number of seconds since GPS epoch time:
-#' 1980-01-06 00:00:00 (GMT / UTC). This function converts the GPS time values
-#' to \code{POSIXct} date-times and finds the start and end values, either for
-#' the tile as a whole or for individual flightlines.
+#' The data table for an imported LAS tile includes a \code{gpstime} column
+#' which gives, for each point, scan time expressed as \code{S - 1e9} where
+#' \code{S} is the number of seconds since GPS epoch time: 1980-01-06 00:00:00
+#' (GMT / UTC). This function converts the GPS time values to \code{POSIXct}
+#' date-times and finds the start and end values, either for the tile as a whole
+#' or for individual flightlines.
 #'
 #' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
@@ -917,7 +994,9 @@ is_prepared_tile <- function(las) {
   if (is_empty_tile(las)) {
     FALSE
   } else {
-    all(c("zref", "flightlineid") %in% tolower(colnames(las@data)))
+    expected.cols <- c(mandatory_input_fields(), "zref", "flightlineid")
+
+    all(expected.cols %in% tolower(colnames(las@data)))
   }
 }
 
@@ -1010,7 +1089,7 @@ get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5)) {
     function(i) {
       dat <- xy[ xy[,3] == i, , drop=FALSE]
       if (nrow(dat) == 0) setValues(r, 0)
-      else rasterize(dat[, 1:2], r, fun = 'count', background = 0)
+      else rasterize(dat[, 1:2, drop = FALSE], r, fun = 'count', background = 0)
     })
 
   rcounts <- stack(rcounts)
@@ -1189,3 +1268,24 @@ check_strata <- function(strata) {
   strata
 }
 
+
+#' Update a LAS header based on current point data
+#'
+#' This function can be called to update the header information of a LAS object
+#' after making direct changes to its points data (e.g. removing selected
+#' points). It is a short-cut for the function \code{\link[rlas]{header_update}}
+#' in the \code{rlas} package.
+#'
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#'
+#' @return A LAS object with header information updated, if necessary, to
+#'   accord with its current data.
+#'
+#' @export
+#'
+update_tile_header <- function(las) {
+  hdr <- as.list(las@header)
+  hdr <- rlas::header_update(hdr, las@data)
+  las@header <- lidR::LASheader(hdr)
+  las
+}

@@ -1,8 +1,8 @@
 Package: CERMBlidar
 Type: Package
 Title: A collection of functions to process aerial LIDAR data
-Version: 0.1.12
-Date: 2019-04-12
+Version: 0.1.14
+Date: 2019-06-24
 Authors@R: c(
   person("Meaghan", "Jenkins", role = "aut", email = "mjenkins@uow.edu.au"),
   person("Michael", "Bedward", role = c("aut", "cre"), email = "michael.bedward@gmail.com")
@@ -14,7 +14,7 @@ Description: Functions to prepare and analyse aerial LIDAR data. Written for
   Some functions are particular to data conventions used by New South Wales 
   State Government and might not be suitable for general use; (2) The package
   is at an early stage of development and features are likely to change
-  without notice between successive 0.1.x versions.
+  without notice between successive 0.x versions.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true

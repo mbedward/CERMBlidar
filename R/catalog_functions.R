@@ -28,6 +28,13 @@
 #'
 #' @importFrom sf st_polygon st_sfc st_sf
 #'
+#' @examples
+#' \dontrun{
+#' # Compile metadata and save as an ESRI shapefile
+#' meta <- compile_metadata("D:/mydata")
+#' sf::st_write(meta, "metadata.shp", delete_layer = TRUE)
+#' }
+#'
 #' @export
 #'
 compile_metadata <- function(path, dirs = "LAS", exts = "html", extent.crs = 4326) {
@@ -130,10 +137,10 @@ compile_metadata <- function(path, dirs = "LAS", exts = "html", extent.crs = 432
 #'
 read_html_metadata <- function(path.html) {
   if (length(path.html) > 1)
-    stop("Bummer: The path.html argument can only refer to one file")
+    stop("The path.html argument is presently limited to a single file")
 
   if (!requireNamespace("rvest", quietly = TRUE))
-    stop("Bummer: You need to install the rvest package to use this function")
+    stop("You need to install the rvest package to use this function")
 
   ri <- function(pattern) stringr::regex(pattern, ignore_case = TRUE)
 

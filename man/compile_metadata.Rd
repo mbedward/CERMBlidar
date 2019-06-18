@@ -34,6 +34,14 @@ the spatial data frame consists of rectangular polygons for tile extents.
 Presently, the function assumes that HTML metadata is in the format used by
 Spatial Services, New South Wales.
 }
+\examples{
+\dontrun{
+# Compile metadata and save as an ESRI shapefile
+meta <- compile_metadata("D:/mydata")
+sf::st_write(meta, "metadata.shp", delete_layer = TRUE)
+}
+
+}
 \seealso{
 \code{\link{read_html_metadata}}
 }
