@@ -31,10 +31,15 @@ character string containing single-letter abbreviations for selected
 fields. See \code{\link[lidR]{readLAS}} for details of the available,
 single-letter field abbreviations.}
 
-\item{classes}{Point classes to include. Default is NULL to include
-all classes. Specify a subset of classes as a vector of integers. For
-example: \code{classes = 2:6} would include ground (2), vegetation
-(3, 4, 5) and building (6) points.}
+\item{classes}{Point classes to include or exclude. The default
+(\code{NULL}) means include all classes other than overlap points
+(class 12). Specify a subset of classes as a vector of integers,
+e.g. \code{classes = 2:6} would include ground (2), vegetation (3, 4, 5)
+and building (6) points. Negative values can be used to exclude selected
+classes, e.g. \code{classes = -6} would include all classes except those
+classified as building points. Note that overlap points (class 12) are
+always excluded unless an explicit \code{classes} vector is provided with
+12 as one of its values.}
 
 \item{min.points}{The minimum number of points in a flight line for it to be
 retained in the imported tile. The default value (1000) is intended to

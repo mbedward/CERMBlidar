@@ -1,8 +1,8 @@
 Package: CERMBlidar
 Type: Package
 Title: A collection of functions to process aerial LIDAR data
-Version: 0.1.14
-Date: 2019-06-24
+Version: 0.1.15
+Date: 2019-08-21
 Authors@R: c(
   person("Meaghan", "Jenkins", role = "aut", email = "mjenkins@uow.edu.au"),
   person("Michael", "Bedward", role = c("aut", "cre"), email = "michael.bedward@gmail.com")
@@ -26,7 +26,7 @@ Suggests: testthat,
     xml2
 LinkingTo: Rcpp
 Depends: R (>= 3.5.0),
-  lidR (>= 2.0.2),
+  lidR (>= 2.1.2),
   raster
 Imports: Rcpp,
   dplyr,

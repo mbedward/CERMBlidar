@@ -56,10 +56,15 @@ mandatory_input_fields <- function() {
 #'   fields. See \code{\link[lidR]{readLAS}} for details of the available,
 #'   single-letter field abbreviations.
 #'
-#' @param classes Point classes to include. Default is NULL to include
-#'   all classes. Specify a subset of classes as a vector of integers. For
-#'   example: \code{classes = 2:6} would include ground (2), vegetation
-#'   (3, 4, 5) and building (6) points.
+#' @param classes Point classes to include or exclude. The default
+#'   (\code{NULL}) means include all classes other than overlap points
+#'   (class 12). Specify a subset of classes as a vector of integers,
+#'   e.g. \code{classes = 2:6} would include ground (2), vegetation (3, 4, 5)
+#'   and building (6) points. Negative values can be used to exclude selected
+#'   classes, e.g. \code{classes = -6} would include all classes except those
+#'   classified as building points. Note that overlap points (class 12) are
+#'   always excluded unless an explicit \code{classes} vector is provided with
+#'   12 as one of its values.
 #'
 #' @param min.points The minimum number of points in a flight line for it to be
 #'   retained in the imported tile. The default value (1000) is intended to
@@ -130,8 +135,30 @@ prepare_tile <- function(path,
     }
   }
 
-  if (is.null(classes)) filtertxt <- ""
-  else filtertxt <- paste("-keep_class", paste(classes, collapse = " "))
+  if (is.null(classes)) filtertxt <- "-drop_class 12"
+  else {
+    keeps <- classes[ classes > 0 ]
+    drops <- abs(classes[ classes < 0 ])
+
+    # check for inconsistencies
+    x <- base::intersect(keeps, drops)
+    if (length(x) > 0) stop("Cannot keep and drop the same class(es): ", x)
+
+    # Special treatment for class 12 (overlap points)
+    if (!(12 %in% c(drops, keeps))) drops <- c(drops, 12)
+
+    if (length(keeps) > 0)
+      keepstxt <- paste("-keep_class", paste(keeps, collapse = " "))
+    else
+      keepstxt <- ""
+
+    if (length(drops) > 0)
+      dropstxt <- paste("-drop_class", paste(drops, collapse = " "))
+    else
+      dropstxt <- ""
+
+    filtertxt <- paste(keepstxt, dropstxt)
+  }
 
   las <- lidR::readLAS(las.file, select = fields, filter = filtertxt)
 
