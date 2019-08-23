@@ -17,3 +17,13 @@
 #' \item{upper}{Upper height of stratum (metres)}
 #' }
 "StrataSpecht"
+
+#' Regular 50cm strata from 0 - 30m, plus a catch-all stratum for >30m
+#'
+#' @format A data frame (tbl_df) with 61 rows and 3 columns:
+#' \describe{
+#' \item{name}{Stratum label ('to0.5', 'to1.0', 'to1.5' ... 'over30.0')}
+#' \item{lower}{Lower height of stratum (metres)}
+#' \item{upper}{Upper height of stratum (metres)}
+#' }
+"StrataCERMB"

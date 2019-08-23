@@ -1,6 +1,8 @@
 # Create strata definitions and save to package data directory
 
-StrataOFH <- dplyr::tribble(
+library(dplyr)
+
+StrataOFH <- tribble(
   ~name,        ~lower, ~upper,
   "Ground",       -Inf,    0.3,
   "NearSurface",   0.3,    0.5,
@@ -9,7 +11,10 @@ StrataOFH <- dplyr::tribble(
   "UpperCanopy",    15,    Inf
 )
 
-StrataSpecht <- dplyr::tribble(
+usethis::use_data(StrataOFH, overwrite = TRUE)
+
+
+StrataSpecht <- tribble(
   ~name,        ~lower, ~upper,
   "Ground",       -Inf,    0.5,
   "LowShrub",      0.5,      2,
@@ -19,4 +24,21 @@ StrataSpecht <- dplyr::tribble(
   "TallTree",       30,    Inf
 )
 
-devtools::use_data(StrataOFH, StrataSpecht, overwrite = TRUE)
+usethis::use_data(StrataSpecht, overwrite = TRUE)
+
+
+# Regular 50cm vertical strata up to 30m
+
+StrataCERMB <- tibble(
+  lower = c(-Inf, seq(0.5, 30, 0.5)) ) %>%
+
+  mutate(upper = lead(lower),
+         name = sprintf("to%.1f", upper)) %>%
+
+  select(name, lower, upper)
+
+i <- nrow(StrataCERMB)
+StrataCERMB$name[i] <- sprintf("over%.1f", StrataCERMB$lower[i])
+StrataCERMB$upper[i] <- Inf
+
+usethis::use_data(StrataCERMB, overwrite = TRUE)
