@@ -195,6 +195,49 @@ prepare_tile <- function(path,
 .is_zipped <- function(path) stringr::str_detect(path, "\\.zip\\s*$")
 
 
+#' Transform point cloud coordinates to a new projection
+#'
+#' This function takes the X,Y coordinates of all points and transforms them
+#' from their existing projection to a user-specified one. The transformation is
+#' done using \code{sf} package methods. If the point cloud is very large this
+#' may take a while.
+#'
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#'
+#' @param epsg.new Integer EPSG code for the projection into which the point
+#'   cloud will be transformed.
+#'
+#' @param epsg.old This argument allows you to optionally supply or override the
+#'   EPSG code for the existing projection. For a LAS tile with a properly
+#'   assigned projection this defaults to the existing EPSG code.
+#'
+#' @return A new \code{LAS} object with reprojected point coordinates and
+#'   an updated header.
+#'
+#' @export
+#'
+reproject_tile <- function(las, epsg.new, epsg.old = lidR::epsg(las)) {
+  if (is.na(epsg.old) || is.null(epsg.old) || epsg.old <= 0) {
+    stop("Existing projection is not defined. Specify a value for epsg.old")
+  }
+
+  if (epsg.new != epsg.old) {
+    dat <- as.data.frame( las@data[, c("X", "Y")] )
+    dat <- sf::st_as_sf(dat, coords = 1:2, crs = lidR::epsg(las))
+    dat <- sf::st_transform(dat, epsg.new)
+    dat <- sf::st_coordinates(dat)
+
+    las@data$X <- dat[, "X"]
+    las@data$Y <- dat[, "Y"]
+    lidR::epsg(las) <- epsg.new
+
+    las <- update_tile_header(las)
+  }
+
+  las
+}
+
+
 #' Filter flight lines based on the number of points in each
 #'
 #' This function takes an input LAS tile and returns a copy from which any
@@ -1300,8 +1343,10 @@ check_strata <- function(strata) {
 #'
 #' This function can be called to update the header information of a LAS object
 #' after making direct changes to its points data (e.g. removing selected
-#' points). It is a short-cut for the function \code{\link[rlas]{header_update}}
-#' in the \code{rlas} package.
+#' points). It does a little more than the similar function \code{header_update}
+#' in the \code{rlas} package which only updates the header elements for min and
+#' max X, Y and Z, and the number of points. This function additionally updates
+#' the X and Y offsets.
 #'
 #' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
@@ -1312,7 +1357,27 @@ check_strata <- function(strata) {
 #'
 update_tile_header <- function(las) {
   hdr <- as.list(las@header)
-  hdr <- rlas::header_update(hdr, las@data)
+
+  hdr[["Number of point records"]] <- nrow(las@data)
+
+  if ("ReturnNumber" %in% colnames(las@data))
+    hdr[["Number of points by return"]] <- as.numeric(table(las@data$ReturnNumber))
+
+  xlims <- range(las@data$X)
+  ylims <- range(las@data$Y)
+  zlims <- range(las@data$Z)
+
+  hdr[["Min X"]] <- xlims[1]
+  hdr[["Min Y"]] <- ylims[1]
+  hdr[["Min Z"]] <- zlims[1]
+
+  hdr[["Max X"]] <- xlims[2]
+  hdr[["Max Y"]] <- ylims[2]
+  hdr[["Max Z"]] <- zlims[2]
+
+  hdr[["X offset"]] <- round(xlims[1], -floor(log10(xlims[1])))
+  hdr[["Y offset"]] <- round(ylims[1], -floor(log10(ylims[1])))
+
   las@header <- lidR::LASheader(hdr)
   las
 }

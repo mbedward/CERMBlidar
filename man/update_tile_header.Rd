@@ -16,6 +16,8 @@ A LAS object with header information updated, if necessary, to
 \description{
 This function can be called to update the header information of a LAS object
 after making direct changes to its points data (e.g. removing selected
-points). It is a short-cut for the function \code{\link[rlas]{header_update}}
-in the \code{rlas} package.
+points). It does a little more than the similar function \code{header_update}
+in the \code{rlas} package which only updates the header elements for min and
+max X, Y and Z, and the number of points. This function additionally updates
+the X and Y offsets.
 }
