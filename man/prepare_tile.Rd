@@ -21,10 +21,10 @@ ground level as estimated from an elevation surface fitted by Delaunay
 triangulation. The original point heights are kept as a new data table
 column 'Zref'.}
 
-\item{drop.negative}{If TRUE, any points (other than ground points) whose
-heights are below ground level (as estimated by Delaunay interpolation of
-ground point heights) are adjusted to have a height value of zero. This
-argument only applies if \code{normalize.heights = TRUE}.}
+\item{drop.negative}{If TRUE, any points (other than ground and water points)
+whose heights are below ground level (as estimated by Delaunay
+interpolation of ground point heights) are adjusted to have a height value
+of zero. This argument only applies if \code{normalize.heights = TRUE}.}
 
 \item{fields}{Either \code{NULL} (default) to include all data fields, or a
 character string containing single-letter abbreviations for selected

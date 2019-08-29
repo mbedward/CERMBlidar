@@ -46,10 +46,10 @@ mandatory_input_fields <- function() {
 #'   triangulation. The original point heights are kept as a new data table
 #'   column 'Zref'.
 #'
-#' @param drop.negative If TRUE, any points (other than ground points) whose
-#'   heights are below ground level (as estimated by Delaunay interpolation of
-#'   ground point heights) are adjusted to have a height value of zero. This
-#'   argument only applies if \code{normalize.heights = TRUE}.
+#' @param drop.negative If TRUE, any points (other than ground and water points)
+#'   whose heights are below ground level (as estimated by Delaunay
+#'   interpolation of ground point heights) are adjusted to have a height value
+#'   of zero. This argument only applies if \code{normalize.heights = TRUE}.
 #'
 #' @param fields Either \code{NULL} (default) to include all data fields, or a
 #'   character string containing single-letter abbreviations for selected
@@ -174,7 +174,7 @@ prepare_tile <- function(path,
 
     # set any negative ground heights to zero
     if (drop.negative) {
-      ii <- las@data$Z < 0 & las@data$Classification != 2
+      ii <- las@data$Z < 0 & !(las@data$Classification %in% c(2,9))
       las@data[ ii, "Z" ] <- 0
     }
   }
@@ -1099,14 +1099,14 @@ is_empty_tile <- function(las) {
 #' @param res Raster cell size.
 #'
 #' @param classes Integer classification codes for points to include.
-#'   Default is 2 (ground) and 3:5 (vegetation).
+#'   Default is 2 (ground) and 3:5 (vegetation) and 9 (water).
 #'
 #' @return A \code{RasterStack} where each layer corresponds to a stratum
 #'   (or ground) and cell values are point counts.
 #'
 #' @export
 #'
-get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5)) {
+get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5,9)) {
 
   if (!is_prepared_tile(las))
     stop("Argument 'las' must be a LAS object imported with prepare_tile\n",

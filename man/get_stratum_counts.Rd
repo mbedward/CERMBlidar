@@ -4,7 +4,7 @@
 \alias{get_stratum_counts}
 \title{Get vegetation point counts for defined strata.}
 \usage{
-get_stratum_counts(las, strata, res = 10, classes = c(2, 3, 4, 5))
+get_stratum_counts(las, strata, res = 10, classes = c(2, 3, 4, 5, 9))
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
@@ -15,7 +15,7 @@ name, lower, upper.}
 \item{res}{Raster cell size.}
 
 \item{classes}{Integer classification codes for points to include.
-Default is 2 (ground) and 3:5 (vegetation).}
+Default is 2 (ground) and 3:5 (vegetation) and 9 (water).}
 }
 \value{
 A \code{RasterStack} where each layer corresponds to a stratum
