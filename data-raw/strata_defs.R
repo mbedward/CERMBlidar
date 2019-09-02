@@ -29,6 +29,7 @@ usethis::use_data(StrataSpecht, overwrite = TRUE)
 
 # Regular 50cm vertical strata up to 30m
 
+library(dplyr)
 StrataCERMB <- tibble(
   lower = c(-Inf, 0.3, seq(0.5, 30, 0.5)) ) %>%
 
