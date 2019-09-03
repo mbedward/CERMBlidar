@@ -1238,6 +1238,84 @@ get_stratum_cover <- function(rcounts) {
 }
 
 
+#' Get point class frequencies.
+#'
+#' Gets the number of points in classes: ground, veg, building, water, and
+#' other.
+#'
+#' @param las A LAS object.
+#'
+#' @return A named list of the count of points in each of the following
+#' classes: ground, veg, building, water, other.
+#'
+#' @export
+#'
+get_class_frequencies <- function(las) {
+  x <- table(las@data$Classification)
+  x <- data.frame(code = names(x), n = as.numeric(x), stringsAsFactors = FALSE)
+
+  x$class <- sapply(x$code, switch,
+                    '2' = "ground",
+                    '3' = "veg",
+                    '4' = "veg",
+                    '5' = "veg",
+                    '6' = "building",
+                    '9' = "water",
+                    "other")
+
+  x <- tapply(x$n, x$class, sum)
+
+  all.classes <- c("ground", "veg", "building", "water", "other")
+  to.add <- setdiff(all.classes, names(x))
+  n <- length(to.add)
+  if (n > 0) {
+    x2 <- integer(n)
+    names(x2) <- to.add
+    x <- c(x, x2)
+  }
+
+  as.list(x)
+}
+
+
+#' Get the bounding rectangle of the point cloud
+#'
+#' This function constructs a polygon based on the minimum and maximum X and Y
+#' ordinates in the LAS data table, and returns it as either a named vector, a
+#' WKT (Well Known Text) string specifier, or an \code{sf} polygon object.
+#'
+#' @param las A LAS object.
+#'
+#' @param type Either \code{'vec'} (default) to return a named vector of min
+#'   and max coordinates; \code{'wkt'} to return a WKT text string, or
+#'   \code{'sf'} to return a polygon object.
+#'
+#' @return The bounding polygon in the format specified by the \code{type}
+#'   argument.
+#'
+#' @export
+#'
+get_las_bounds <- function(las, type = c("vec", "wkt", "sf")) {
+  type <- match.arg(type)
+  outfn <- ifelse(type == "wkt", sf::st_as_text, base::identity)
+
+  xys <- c(range(las@data$X), range(las@data$Y))
+
+  if (type == "vec") {
+    c('xmin' = xys[1], 'xmax' = xys[2], 'ymin' = xys[3], 'ymax' = xys[4])
+
+  } else {
+    ii <- c(1,3, 1,4, 2,4, 2,3, 1,3)
+    v <- matrix(xys[ii], ncol = 2, byrow = TRUE)
+
+    p <- sf::st_polygon(list(v))
+
+    if (type == "wkt") sf::st_as_text(p)
+    else p
+  }
+}
+
+
 #' Metrics function for summary statistics
 #'
 #' @importFrom dplyr %>%
