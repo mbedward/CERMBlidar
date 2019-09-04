@@ -4,7 +4,7 @@
 \alias{remove_flightline_overlap}
 \title{Remove overlap between flight lines.}
 \usage{
-remove_flightline_overlap(las, classes = 3:5, res = 10, buffer = 100,
+remove_flightline_overlap(las, classes = 5, res = 10, buffer = 100,
   min.points = 1000, ...)
 }
 \arguments{

@@ -92,6 +92,14 @@ prepare_tile <- function(path,
                          flight.gap = 60,
                          unzip.dir = NULL) {
 
+  if (!is.character(path)) {
+    stop("Argument path should be a character string for path and filename.")
+  }
+
+  if (!file.exists(path)) {
+    stop("File not found: ", path)
+  }
+
   if (length(path) > 1) {
     warning("Presently only one path element is supported. Ignoring extra elements.")
     path <- path[1]
@@ -752,7 +760,7 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #' @export
 #'
 remove_flightline_overlap <- function(las,
-                                      classes = 3:5, res = 10, buffer = 100,
+                                      classes = 5, res = 10, buffer = 100,
                                       min.points = 1000,
                                       ...) {
 
