@@ -280,7 +280,7 @@ filter_flightlines <- function(las, min.points = 1e3) {
     # those records
     ids.keep <- as.integer( names(counts[ikeep]) )
     rec.keep <- las@data$flightlineID %in% ids.keep
-    las@data <- las@data[irecs, ]
+    las@data <- las@data[rec.keep, ]
 
     # Update las header
     las <- update_tile_header(las)
