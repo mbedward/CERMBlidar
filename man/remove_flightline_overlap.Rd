@@ -43,7 +43,10 @@ is issued and the original, unmodified tile is returned.
 \details{
 We added this function because LIDAR data provided for New South Wales in
 2018 had overlap between flight lines removed for all point classes other
-than class 5 (high vegetation).
+than class 5 (high vegetation). Note that in some cases there can be overlap
+between bounding rectangles of flight lines returned by the function
+\code{get_flightline_info} but no overlap for points in the class(es) being
+considered by this function.
 }
 \seealso{
 \code{\link{get_flightline_info}}, \code{\link{check_flightlines}},

@@ -728,7 +728,10 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #'
 #' We added this function because LIDAR data provided for New South Wales in
 #' 2018 had overlap between flight lines removed for all point classes other
-#' than class 5 (high vegetation).
+#' than class 5 (high vegetation). Note that in some cases there can be overlap
+#' between bounding rectangles of flight lines returned by the function
+#' \code{get_flightline_info} but no overlap for points in the class(es) being
+#' considered by this function.
 #'
 #' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
@@ -845,12 +848,18 @@ remove_flightline_overlap <- function(las,
 
       xyf <- dat[active, ]
 
-      remove <- .do_remove_overlap(xyf, res, tile.xlims, tile.ylims, orientation)
+      # Further check that we have two flight lines in the subset of data.
+      # This is required because bounding polygons of the flight lines are based
+      # on all point classes whereas here we are (usually) only considering
+      # one or a few classes.
+      if (length(unique(xyf[,3])) > 1) {
+        remove <- .do_remove_overlap(xyf, res, tile.xlims, tile.ylims, orientation)
 
-      # Flag removal of points from the tile. The logical OR `|` is to take into
-      # account that a point might have already been flagged for removal when
-      # looking at a previous pair of flightlines.
-      to.remove[active] <- remove | to.remove[active]
+        # Flag removal of points from the tile. The logical OR `|` is to
+        # take into account that a point might have already been flagged
+        # for removal when looking at a previous pair of flightlines.
+        to.remove[active] <- remove | to.remove[active]
+      }
     }
   }
 
