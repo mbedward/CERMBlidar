@@ -317,13 +317,13 @@ get_point_density <- function(las) {
 
 #' Check that the orientations of all flightlines match
 #'
-#' This is a convenience function that calls \code{\link{get_flightline_dir}}
+#' This is a convenience function that calls \code{get_flightline_info}
 #' with default arguments and checks that all flight lines have the same
 #' orientation, either 'EW' or 'NS'.
 #'
 #' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
-#' @param ... Additional arguments to pass to \code{\link{get_flightline_info}}
+#' @param ... Additional arguments to pass to \code{get_flightline_info}
 #'   including \code{angular.tol}.
 #'
 #' @return \code{TRUE} if flight lines are consistent; \code{FALSE} otherwise.

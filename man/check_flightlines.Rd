@@ -9,14 +9,14 @@ check_flightlines(las, ...)
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
 
-\item{...}{Additional arguments to pass to \code{\link{get_flightline_info}}
+\item{...}{Additional arguments to pass to \code{get_flightline_info}
 including \code{angular.tol}.}
 }
 \value{
 \code{TRUE} if flight lines are consistent; \code{FALSE} otherwise.
 }
 \description{
-This is a convenience function that calls \code{\link{get_flightline_dir}}
+This is a convenience function that calls \code{get_flightline_info}
 with default arguments and checks that all flight lines have the same
 orientation, either 'EW' or 'NS'.
 }
