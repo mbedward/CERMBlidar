@@ -41,15 +41,33 @@ mandatory_input_fields <- function() {
 #'   'las' or 'LAS' file extension) although it can also contain other files
 #'   (e.g. HTML or XML documents).
 #'
-#' @param normalize.heights If TRUE (default), normalize all point heights to
-#'   ground level as estimated from an elevation surface fitted by Delaunay
-#'   triangulation. The original point heights are kept as a new data table
-#'   column 'Zref'.
+#' @param normalize.heights Whether, and how, to normalize point heights to
+#'   ground level. Can be one of the following:
+#'   \describe{
+#'     \item{A logical value}{If \code{TRUE}, relative ground level is estimated from
+#'       an elevation surface fitted by triangulation to ground points in the
+#'       LAS file. This is equivalent to calling the
+#'       \code{\link[lidR]{lasnormalize}} function directly with the argument
+#'       \code{algorithm = tin()}. If \code{FALSE}, point heights will not be
+#'       normalized.}
+#'     \item{A raster layer}{If a raster layer is provided, the cell values
+#'       will be used as ground elevation to normalize point heights. The layer
+#'       should have the same or greater extent as the LAS file.}
+#'     \item{An algorithm name as a character string}{Point heights will be
+#'       normalized using the specified algorithm. Must be one of:
+#'       \code{'tin', 'knnidw', 'kriging'} which correspond to the algorithm
+#'       functions provided by the \code{lidR} package.}
+#'     \item{NULL}{Same as \code{FALSE}, ie. point heights will not be
+#'       normalized.}
+#'   }
+#'   \strong{The default value is \code{'tin'}.}
+#'   If point heights are normalized, the original values are copied to a new
+#'   data table column: 'Zref'.
 #'
 #' @param drop.negative If TRUE, any points (other than ground and water points)
 #'   whose heights are below ground level (as estimated by Delaunay
 #'   interpolation of ground point heights) are adjusted to have a height value
-#'   of zero. This argument only applies if \code{normalize.heights = TRUE}.
+#'   of zero. Ignored if point heights are not being normalized.
 #'
 #' @param fields Either \code{NULL} (default) to include all data fields, or a
 #'   character string containing single-letter abbreviations for selected
@@ -84,7 +102,7 @@ mandatory_input_fields <- function() {
 #' @export
 #'
 prepare_tile <- function(path,
-                         normalize.heights = TRUE,
+                         normalize.heights = "tin",
                          drop.negative = TRUE,
                          fields = NULL,
                          classes = NULL,
@@ -108,15 +126,18 @@ prepare_tile <- function(path,
   if (is.null(fields)) fields <- "*"
   else fields <- .as_scalar(fields)
 
-  zipped <- .is_zipped(path)
-  if (zipped) {
+  # Vector to hold paths to (possibly) unzipped las and dem files
+  unz.files <- character(0)
+
+  zipped.las <- .is_zipped(path)
+  if (zipped.las) {
     if (is.null(unzip.dir)) unzip.dir <- tempdir(check = TRUE)
 
     # allow for the possibility that there are other files in the zip file as well
     # as the LAS file
-    unz.files <- utils::unzip(path, overwrite = TRUE, exdir = unzip.dir)
+    ff <- utils::unzip(path, overwrite = TRUE, exdir = unzip.dir)
 
-    las.file <- stringr::str_subset(unz.files, "\\.(las|LAS)$")
+    las.file <- stringr::str_subset(ff, "\\.(las|LAS)$")
     n <- length(las.file)
 
     if (n == 0) {
@@ -128,9 +149,12 @@ prepare_tile <- function(path,
       return(NULL)
     }
 
+    unz.files <- c(unz.files, ff)
+
   } else {
     las.file <- path
   }
+
 
   if (fields != "*") {
     # Check all mandatory fields are included and add any that were missed
@@ -176,9 +200,64 @@ prepare_tile <- function(path,
     return(las)
   }
 
-  # Normalize point heights relative to ground level
-  if (normalize.heights) {
-    las <- lidR::lasnormalize(las, algorithm = lidR::tin())
+  # Normalize point heights relative to ground level if required
+  # Check whether, and how, to normalize point heights
+  do.normalize <-
+    if (is.null(normalize.heights)) FALSE
+    else if (is.logical(normalize.heights)) normalize.heights
+    else TRUE
+
+  if (do.normalize) {
+    if (is.logical(normalize.heights)) { # must be TRUE
+      if (normalize.heights) las <- lidR::lasnormalize(las, algorithm = lidR::tin())
+
+    } else if (is.character(normalize.heights)) {
+      # Check if string is an algorithm name
+      algorithms <- c("tin", "knnidw", "kriging")
+      ii <- base::match(tolower(normalize.heights), algorithms)
+      if (!is.na(ii)) {
+        fn <- base::switch(algorithms[ii],
+                           tin = lidR::tin,
+                           knnidw = lidR::knnidw,
+                           kriging = lidR::kriging)
+
+        las <- lidR::lasnormalize(las, algorithm = fn())
+
+      } else {
+        # String should be a raster file path
+        if (!file.exists(normalize.heights)) {
+          stop("Cannot find raster file ", normalize.heights)
+        }
+        zipped.dem <- .is_zipped(normalize.heights)
+        if (zipped.dem) {
+          if (is.null(unzip.dir)) unzip.dir <- tempdir(check = TRUE)
+
+          # allow for the possibility that there are other files in the zip file as well
+          # as the raster file
+          ff <- utils::unzip(normalize.heights, overwrite = TRUE, exdir = unzip.dir)
+
+          dem.file <- stringr::str_subset(ff, "\\.(asc|ASC|tif|TIF)$")
+          n <- length(dem.file)
+
+          if (n == 0) {
+            warning("DEM zip file does not contain a file with extension asc or tif")
+            return(NULL)
+          }
+          else if (n > 1) {
+            warning("DEM zip file contains multiple raster files")
+            return(NULL)
+          }
+
+          unz.files <- unique(c(unz.files, ff))
+
+        } else {
+          dem.file <- normalize.heights
+        }
+
+        r <- raster::raster(dem.file)
+        las <- lidR::lasnormalize(las, algorithm = r)
+      }
+    }
 
     # set any negative ground heights to zero
     if (drop.negative) {
@@ -192,9 +271,7 @@ prepare_tile <- function(path,
 
   if (min.points > 0) las <- filter_flightlines(las, min.points)
 
-  if (zipped) {
-    unlink(unz.files)
-  }
+  if (length(unz.files) > 0) unlink(unz.files)
 
   las
 }
@@ -747,11 +824,10 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #' @param ... Additional arguments to pass to \code{link{get_flightline_info}}
 #'   when checking for consistent north-south or east-west orientation.
 #'
-#' @param min.points The minimum number of points in a flight line for it to be
-#'   considered. Flight lines with fewer points are discarded. The default value
-#'   (1000) is intended to exclude flight lines that only appear at the margins
-#'   of the tile. Normally, such sparse flight lines will be removed when
-#'   importing the tile.
+#' @param min.points The minimum number of points in the relevant point classes
+#'   for a flight line to be considered. Flight lines with fewer points are
+#'   ignored. If less than two flight lines have sufficient points the LAS
+#'   object is returned unchanged.
 #'
 #' @return A modified copy of the input LAS object.
 #'
@@ -777,26 +853,25 @@ remove_flightline_overlap <- function(las,
 
   # Get flight line info (bounding rectangles etc) and check for
   # consistent orientation
-  fline.dat <- get_flightline_info(las, min.points = min.points, ...)
+  fline.dat <- get_flightline_info(las, min.points = 0, ...)
 
-  # Check that each flight line has sufficient points
+  # Check that each flight line has sufficient points in the classes being
+  # considered
+  x <- table(las@data[, c("flightlineID", "Classification")])[, as.character(classes), drop=FALSE]
+  x <- rowSums(x) >= min.points
+
   fline.dat <- fline.dat %>%
-    dplyr::mutate(included = npoints >= min.points)
+    dplyr::mutate(included = x)
 
   if (!any(fline.dat$included)) {
-    warning("No flight lines have sufficient points. LAS object is unchanged.")
+    warning("No flight lines have sufficient points in relevant classes. LAS object is unchanged.")
     return(las)
   }
 
-  # Remove points for flight lines with too few points
-  ids <- fline.dat$flightlineID[ fline.dat$included ]
-  ii <- las@data$flightlineID %in% ids
-  if (!all(ii)) {
-    las@data <- las@data[ii, ]
-    las <- update_tile_header(las)
-  }
-
+  # Remove any flight lines with too few points in the relevant classes
+  # from further consideration
   fline.dat <- dplyr::filter(fline.dat, included)
+  flines <- fline.dat$flightlineID
 
   if (nrow(fline.dat) == 1) {
     message("Only one flight line with sufficient points was retained.")
@@ -831,7 +906,6 @@ remove_flightline_overlap <- function(las,
 
   # All pairwise combinations of flightlines
   fline.pairs <- utils::combn(flines, 2)
-
 
   for (i in 1:ncol(fline.pairs)) {
     fline1 <- fline.pairs[1,i]

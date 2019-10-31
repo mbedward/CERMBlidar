@@ -19,11 +19,10 @@ value is 10 which assumes that map units are metres.}
 that the boundaries partitioning overlap areas extend beyond all points.
 Default value is 100 which assumes map units are metres.}
 
-\item{min.points}{The minimum number of points in a flight line for it to be
-considered. Flight lines with fewer points are discarded. The default value
-(1000) is intended to exclude flight lines that only appear at the margins
-of the tile. Normally, such sparse flight lines will be removed when
-importing the tile.}
+\item{min.points}{The minimum number of points in the relevant point classes
+for a flight line to be considered. Flight lines with fewer points are
+ignored. If less than two flight lines have sufficient points the LAS
+object is returned unchanged.}
 
 \item{...}{Additional arguments to pass to \code{link{get_flightline_info}}
 when checking for consistent north-south or east-west orientation.}

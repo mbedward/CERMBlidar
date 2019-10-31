@@ -4,7 +4,7 @@
 \alias{prepare_tile}
 \title{Import and prepare a LAS tile for further processing}
 \usage{
-prepare_tile(path, normalize.heights = TRUE, drop.negative = TRUE,
+prepare_tile(path, normalize.heights = "tin", drop.negative = TRUE,
   fields = NULL, classes = NULL, min.points = 1000,
   flight.gap = 60, unzip.dir = NULL)
 }
@@ -16,15 +16,33 @@ compressed file should contain only one LAS file (identified by having a
 'las' or 'LAS' file extension) although it can also contain other files
 (e.g. HTML or XML documents).}
 
-\item{normalize.heights}{If TRUE (default), normalize all point heights to
-ground level as estimated from an elevation surface fitted by Delaunay
-triangulation. The original point heights are kept as a new data table
-column 'Zref'.}
+\item{normalize.heights}{Whether, and how, to normalize point heights to
+ground level. Can be one of the following:
+\describe{
+  \item{A logical value}{If \code{TRUE}, relative ground level is estimated from
+    an elevation surface fitted by triangulation to ground points in the
+    LAS file. This is equivalent to calling the
+    \code{\link[lidR]{lasnormalize}} function directly with the argument
+    \code{algorithm = tin()}. If \code{FALSE}, point heights will not be
+    normalized.}
+  \item{A raster layer}{If a raster layer is provided, the cell values
+    will be used as ground elevation to normalize point heights. The layer
+    should have the same or greater extent as the LAS file.}
+  \item{An algorithm name as a character string}{Point heights will be
+    normalized using the specified algorithm. Must be one of:
+    \code{'tin', 'knnidw', 'kriging'} which correspond to the algorithm
+    functions provided by the \code{lidR} package.}
+  \item{NULL}{Same as \code{FALSE}, ie. point heights will not be
+    normalized.}
+}
+\strong{The default value is \code{'tin'}.}
+If point heights are normalized, the original values are copied to a new
+data table column: 'Zref'.}
 
 \item{drop.negative}{If TRUE, any points (other than ground and water points)
 whose heights are below ground level (as estimated by Delaunay
 interpolation of ground point heights) are adjusted to have a height value
-of zero. This argument only applies if \code{normalize.heights = TRUE}.}
+of zero. Ignored if point heights are not being normalized.}
 
 \item{fields}{Either \code{NULL} (default) to include all data fields, or a
 character string containing single-letter abbreviations for selected
