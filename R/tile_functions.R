@@ -50,19 +50,33 @@ mandatory_input_fields <- function() {
 #'       \code{\link[lidR]{lasnormalize}} function directly with the argument
 #'       \code{algorithm = tin()}. If \code{FALSE}, point heights will not be
 #'       normalized.}
-#'     \item{A raster layer}{If a raster layer is provided, the cell values
-#'       will be used as ground elevation to normalize point heights. The layer
-#'       should have the same or greater extent as the LAS file.}
 #'     \item{An algorithm name as a character string}{Point heights will be
 #'       normalized using the specified algorithm. Must be one of:
 #'       \code{'tin', 'knnidw', 'kriging'} which correspond to the algorithm
 #'       functions provided by the \code{lidR} package.}
+#'     \item{A raster layer}{If a raster layer is provided, the cell values
+#'       will be used as ground elevation to normalize point heights. The layer
+#'       should have the same or greater extent as the LAS file.}
+#'     \item{A raster filename}{Any character string that does not match one of
+#'       the supported algorithm names will be treated as the path to a raster
+#'       file. Supported formats are GeoTIFF ('.tif') and ESRI ASCII ('.asc').
+#'       If the file extension is '.zip' it is assumed to be a compressed
+#'       file that will be unzipped before processing (see the \code{unzip.dir}
+#'       parameter below). A compressed file should contain only one raster file
+#'       (identified by having a '.tif' or '.asc' file extension) although it
+#'       can also contain other files (e.g. HTML or XML documents).}
 #'     \item{NULL}{Same as \code{FALSE}, ie. point heights will not be
 #'       normalized.}
 #'   }
 #'   \strong{The default value is \code{'tin'}.}
 #'   If point heights are normalized, the original values are copied to a new
 #'   data table column: 'Zref'.
+#'
+#' @param treat.as.ground If points heights are being normalized by
+#'   interpolating ground points (class 2) using one of the lidR package
+#'   algorithms (\code{'tin', 'knnidw', 'kriging'}), this argument allows other
+#'   point classes to also be treated as ground. The default is class 9 (water).
+#'   Set to NULL or an empty vector to only consider class 2 points as ground.
 #'
 #' @param drop.negative If TRUE, any points (other than ground and water points)
 #'   whose heights are below ground level (as estimated by Delaunay
@@ -103,6 +117,7 @@ mandatory_input_fields <- function() {
 #'
 prepare_tile <- function(path,
                          normalize.heights = "tin",
+                         treat.as.ground = 9,
                          drop.negative = TRUE,
                          fields = NULL,
                          classes = NULL,
@@ -125,6 +140,17 @@ prepare_tile <- function(path,
 
   if (is.null(fields)) fields <- "*"
   else fields <- .as_scalar(fields)
+
+  if (!is.null(treat.as.ground)) {
+    # Just in case class 2 was specified as an additional ground class
+    ii <- base::match(2, treat.as.ground)
+    if (!is.na(ii)) treat.as.ground <- treat.as.ground[-ii]
+
+    if (is.na(treat.as.ground) || length(treat.as.ground) == 0) {
+      treat.as.ground <- NULL
+    }
+  }
+
 
   # Vector to hold paths to (possibly) unzipped las and dem files
   unz.files <- character(0)
@@ -221,7 +247,7 @@ prepare_tile <- function(path,
                            knnidw = lidR::knnidw,
                            kriging = lidR::kriging)
 
-        las <- lidR::lasnormalize(las, algorithm = fn())
+        las <- lidR::lasnormalize(las, algorithm = fn(), add_class = treat.as.ground)
 
       } else {
         # String should be a raster file path
@@ -255,8 +281,15 @@ prepare_tile <- function(path,
         }
 
         r <- raster::raster(dem.file)
-        las <- lidR::lasnormalize(las, algorithm = r)
+        las <- .normalize_heights_dem(las, rdem = r)
       }
+
+    } else if (inherits(normalize.heights, "RasterLayer")) {
+      las <- .normalize_heights_dem(las, rdem = normalize.heights)
+
+    } else {
+      stop("Argument normalize.heights should be a logical value, ",
+           "a character string or a RasterLayer")
     }
 
     # set any negative ground heights to zero
@@ -278,6 +311,19 @@ prepare_tile <- function(path,
 
 
 .is_zipped <- function(path) stringr::str_detect(path, "\\.zip\\s*$")
+
+
+.normalize_heights_dem <- function(las, rdem) {
+  suppressWarnings(
+    las <- mask_tile(las, rdem)
+  )
+
+  if (is.null(las)) {
+    stop("No points lie within mask raster data cells")
+  }
+
+  lidR::lasnormalize(las, algorithm = rdem)
+}
 
 
 #' Transform point cloud coordinates to a new projection
@@ -320,6 +366,40 @@ reproject_tile <- function(las, epsg.new, epsg.old = lidR::epsg(las)) {
   }
 
   las
+}
+
+
+#' Apply a raster mask to a LAS tile
+#'
+#' This function uses a raster layer as a mask to subset a LAS point cloud.
+#' Those points that fall within raster cells with non-missing values are
+#' retained. Any points outside the bounds of the raster, or falling in cells
+#' with \code{NA} values are dropped. If no points fall within data cells of
+#' the raster, a warning message is issued and \code{NULL} is returned.
+#'
+#' @note This function \strong{does not check} that the coordinate reference
+#'   systems of the LAS and raster objects are the same.
+#'
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#'
+#' @param r A \code{RasterLayer} object to use as the mask.
+#'
+#' @return A new \code{LAS} object containing the masked points and updated
+#'   header information.
+#'
+#' @export
+#'
+mask_tile <- function(las, r) {
+  xy <- cbind(X = las@data[["X"]], Y = las@data[["Y"]])
+  keep <- !is.na(raster::extract(r, xy))
+
+  if (!any(keep)) {
+    warning("No points fall within data cells of the raster mask")
+    NULL
+  } else {
+    las@data <- las@data[keep, , drop = FALSE]
+    update_tile_header(las)
+  }
 }
 
 
@@ -1219,9 +1299,8 @@ get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5,9)) {
     strata.indices = match(b, strata$upper)[-1]
   )
 
-  xy <- lidR:::group_grid(las@data$X, las@data$Y, res)
-  xy <- matrix(c(xy[[1]], xy[[2]]), ncol = 2)
-  colnames(xy) <- c("X", "Y")
+  xy <- cbind(X = lidR:::f_grid(las@data$X, res, 0),
+              Y = lidR:::f_grid(las@data$Y, res, 0) )
 
   r <- raster(
     xmn = min(xy[,1]) - res/2,
