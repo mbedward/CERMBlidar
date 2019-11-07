@@ -301,13 +301,10 @@ prepare_tile <- function(path,
       las@data[ ii, "Z" ] <- 0
     }
 
-    # If treat.as.ground specifies additional point classes
-    # (ie. other than class 2), set the normalized elevations of points in these classes
-    # to zero
-    if (length(treat.as.ground) > 1) {
-      ii <- las@data$Classification %in% treat.as.ground
-      las@data$Z[ii] <- 0
-    }
+    # Set the normalized height of all ground points, including classes
+    # specified in the treat.as.ground argument, to zero
+    ii <- las@data$Classification %in% c(2, treat.as.ground)
+    las@data$Z[ii] <- 0
   }
 
   # Add flight line indices based on GPS times for points
