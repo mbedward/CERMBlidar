@@ -72,11 +72,14 @@ mandatory_input_fields <- function() {
 #'   If point heights are normalized, the original values are copied to a new
 #'   data table column: 'Zref'.
 #'
-#' @param treat.as.ground If points heights are being normalized by
-#'   interpolating ground points (class 2) using one of the lidR package
-#'   algorithms (\code{'tin', 'knnidw', 'kriging'}), this argument allows other
-#'   point classes to also be treated as ground. The default is class 9 (water).
-#'   Set to NULL or an empty vector to only consider class 2 points as ground.
+#' @param treat.as.ground Point classes to treat as ground points in addition to
+#'   class 2. If point heights are being normalized by interpolating ground
+#'   points using one of the lidR package algorithms (\code{'tin', 'knnidw',
+#'   'kriging'}), this argument allows other point classes to also be treated as
+#'   ground. If point heights are being normalized from a raster DEM, any
+#'   classes specified by this argument will have their normalized heights set
+#'   to zero. The default value is class 9 (water). Set to NULL or an empty
+#'   vector to only consider class 2 points as ground.
 #'
 #' @param drop.negative If TRUE, any points (other than ground and water points)
 #'   whose heights are below ground level (as estimated by Delaunay
@@ -296,6 +299,14 @@ prepare_tile <- function(path,
     if (drop.negative) {
       ii <- las@data$Z < 0 & !(las@data$Classification %in% c(2,9))
       las@data[ ii, "Z" ] <- 0
+    }
+
+    # If treat.as.ground specifies additional point classes
+    # (ie. other than class 2), set the normalized elevations of points in these classes
+    # to zero
+    if (length(treat.as.ground) > 1) {
+      ii <- las@data$Classification %in% treat.as.ground
+      las@data$Z[ii] <- 0
     }
   }
 
