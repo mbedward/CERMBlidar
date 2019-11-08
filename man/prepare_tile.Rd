@@ -57,9 +57,9 @@ to zero. The default value is class 9 (water). Set to NULL or an empty
 vector to only consider class 2 points as ground.}
 
 \item{drop.negative}{If TRUE, any points (other than ground and water points)
-whose heights are below ground level (as estimated by Delaunay
-interpolation of ground point heights) are adjusted to have a height value
-of zero. Ignored if point heights are not being normalized.}
+whose heights are below ground level (as estimated by interpolation of
+ground point heights are read from a raster DEM) are adjusted to have a
+height value of zero. Ignored if point heights are not being normalized.}
 
 \item{fields}{Either \code{NULL} (default) to include all data fields, or a
 character string containing single-letter abbreviations for selected
@@ -93,14 +93,10 @@ A \code{LAS} object.
 }
 \description{
 This function imports data from a LAS file and prepares it for further
-processing. A surface model is first fitted to ground points (class 2) by
-Delaunay triangulation and the elevation of all points is then adjusted to be
-relative to ground level. Flight lines are identified based on GPS times for
-points and, optionally, any flight lines with less than a threshold number
-of points are discarded.
-}
-\note{
-This function does not modify the input LAS file. You must write the
-  prepared tile to disk explicitly (e.g. using the \code{lidR} package
-  function \code{\link[lidR]{writeLAS}}).
+processing. Point heights are normalized to relative height above ground,
+either by fitting a surface model to ground points (plus water points by
+default) or by taking ground elevations from a provided raster DEM. Height
+normalization can be disabled if desired. Flight lines are identified based
+on GPS times for points and, optionally, any flight lines with less than a
+threshold number of points are discarded.
 }

@@ -24,15 +24,12 @@ mandatory_input_fields <- function() {
 #' Import and prepare a LAS tile for further processing
 #'
 #' This function imports data from a LAS file and prepares it for further
-#' processing. A surface model is first fitted to ground points (class 2) by
-#' Delaunay triangulation and the elevation of all points is then adjusted to be
-#' relative to ground level. Flight lines are identified based on GPS times for
-#' points and, optionally, any flight lines with less than a threshold number
-#' of points are discarded.
-#'
-#' @note This function does not modify the input LAS file. You must write the
-#'   prepared tile to disk explicitly (e.g. using the \code{lidR} package
-#'   function \code{\link[lidR]{writeLAS}}).
+#' processing. Point heights are normalized to relative height above ground,
+#' either by fitting a surface model to ground points (plus water points by
+#' default) or by taking ground elevations from a provided raster DEM. Height
+#' normalization can be disabled if desired. Flight lines are identified based
+#' on GPS times for points and, optionally, any flight lines with less than a
+#' threshold number of points are discarded.
 #'
 #' @param path Path to the LAS or LAZ format file to process. If the file
 #'   extension is '.zip' it is assumed to be a compressed LAS file that will be
@@ -82,9 +79,9 @@ mandatory_input_fields <- function() {
 #'   vector to only consider class 2 points as ground.
 #'
 #' @param drop.negative If TRUE, any points (other than ground and water points)
-#'   whose heights are below ground level (as estimated by Delaunay
-#'   interpolation of ground point heights) are adjusted to have a height value
-#'   of zero. Ignored if point heights are not being normalized.
+#'   whose heights are below ground level (as estimated by interpolation of
+#'   ground point heights are read from a raster DEM) are adjusted to have a
+#'   height value of zero. Ignored if point heights are not being normalized.
 #'
 #' @param fields Either \code{NULL} (default) to include all data fields, or a
 #'   character string containing single-letter abbreviations for selected
@@ -555,8 +552,6 @@ check_flightlines <- function(las, ...) {
 #'   xlen, ylen, orientation and geometry (minimum bounding rectangle of flight
 #'   line).
 #'
-#' @importFrom dplyr %>%
-#'
 #' @seealso \code{\link{check_flightlines}}
 #'
 #' @export
@@ -770,8 +765,6 @@ get_flightline_info <- function(las,
 #'
 #' Adapted from code by 'whuber' at: https://gis.stackexchange.com/a/22934/59514
 #'
-#' @importFrom dplyr %>%
-#'
 #' @export
 #'
 get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
@@ -921,8 +914,6 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #'
 #' @seealso \code{\link{get_flightline_info}}, \code{\link{check_flightlines}},
 #'   \code{\link{plot_flightlines}}
-#'
-#' @importFrom dplyr %>%
 #'
 #' @export
 #'
@@ -1134,7 +1125,6 @@ remove_flightline_overlap <- function(las,
 #'
 #' @return A ggplot object.
 #'
-#' @importFrom dplyr %>%
 #' @importFrom ggplot2 aes coord_equal element_blank ggplot geom_point theme
 #'
 #' @examples
@@ -1197,7 +1187,6 @@ plot_flightlines <- function(las, npts = 5000, shape = 16, size = 1) {
 #'
 #' @return A data frame of start and end times.
 #'
-#' @importFrom dplyr %>%
 #' @export
 #'
 get_scan_times <- function(las, by) {
@@ -1265,6 +1254,88 @@ is_prepared_tile <- function(las) {
 is_empty_tile <- function(las) {
   if (!inherits(las, "LAS")) stop("Object is not a LAS tile")
   nrow(las@data) == 0
+}
+
+
+#' Create raster layers summarizing point counts for a LAS tile
+#'
+#' Given a LAS tile and a raster cell size, this function creates raster layers
+#' where cell values in each layer are point counts over all heights for a given
+#' point class. A layer can also be created for all three vegetation classes
+#' combined. The resulting layers are returned as a \code{RasterStack} object.
+#'
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#'
+#' @param res Raster cell size. The default value is 10 which assumes that
+#'   the LAS data is in a projected coordinate system with metres as units.
+#'
+#' @param classes An integer vector specifying the point classes to summarize.
+#'   May include 2 (ground), 3 (low veg), 4 (mid veg), 5 (high veg), 35 (all veg
+#'   - the three vegetation classes combined), 6 (buildings) and 9 (water). The
+#'   default is to summarize all of the above.
+#'
+#' @return A \code{RasterStack} with a layer for each requested attribute.
+#'
+#' @examples
+#' \dontrun{
+#' # Get summary counts at 10m raster cell size for all supported
+#' # point classes
+#' rcounts <- get_summary_counts(las)
+#'
+#' # Get summary counts for ground and combined vegetation classes
+#' # at 2m resolution
+#' rcounts <- get_summary_counts(las, res = 2, classes = c("ground", "allveg"))
+#' }
+#'
+#' @export
+#'
+get_summary_counts <- function(las, res = 10, classes = NULL) {
+
+  ClassLookup <- list(
+    'ground' = 2,
+    'low veg' = 3,
+    'mid veg' = 4,
+    'high veg' = 5,
+    'all veg' = 35,
+    'building' = 6,
+    'water' = 9)
+
+  if (is.null(classes) || length(classes) == 0) {
+    classes <- as.integer(ClassLookup)
+    indices <- 1:length(ClassLookup)
+
+  } else if (is.numeric(classes)) {
+    indices <- match(classes, ClassLookup)
+    if (anyNA(indices)) {
+      ii <- which(is.na(indices))
+      stop("Unrecognized or non-unique class(es): ", classes[ii], "\n",
+           "Valid options: ", paste(ClassLookup, collapse = ", "))
+    }
+  } else {
+    stop("Argument classes should be NULL or a vector of one or more integers")
+  }
+
+  rbase <- raster::raster(lidR::extent(las), res = res)
+
+  rr <- lapply(classes, function(cl) {
+    if (cl == 35) cl <- 3:5
+    ii <- las@data$Classification %in% cl
+
+    if (!any(ii)) {
+      warning("No points in class ", cl)
+      r <- rbase
+      raster::values(r) <- 0
+    } else {
+      dat <- as.matrix(las@data[ii, c("X", "Y"), drop=FALSE])
+      r <- raster::rasterize(dat, rbase, fun = "count")
+    }
+
+    r
+  })
+
+  names(rr) <- names(ClassLookup)[indices]
+
+  raster::stack(rr)
 }
 
 
@@ -1366,8 +1437,6 @@ get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5,9)) {
 #' st_write(buildings, "buildings.shp")
 #' }
 #'
-#' @importFrom dplyr %>%
-#'
 #' @export
 #'
 get_building_points <- function(las) {
@@ -1413,6 +1482,60 @@ get_stratum_cover <- function(rcounts) {
   names(rcover) <- names(rcounts)[-1]
 
   stack(rcover)
+}
+
+
+#' Derive a raster of maximum point height in all or selected classes
+#'
+#' This is useful for checking purposes. It can also be used to derive
+#' an approximate vegetation height layer by setting the \code{classes}
+#' argument to \code{c(3:5)}.
+#'
+#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#'
+#' @param res Raster cell size. The default value is 10 which assumes that
+#'   the LAS data is in a projected coordinate system with metres as units.
+#'
+#' @param classes Point classes to include when calculating maximum height
+#'   for each cell. Default is 3:5 (low, mid and high vegetation).
+#'
+#' @param nodata Integer value for cells with no points. Default is \code{NA}.
+#'
+#' @return A \code{RasterLayer} in which cell values are maximum point height.
+#'
+#' @export
+#'
+get_max_height <- function(las, res = 10, classes = 3:5, nodata = NA) {
+  if (!is.na(nodata)) {
+    if (is.null(nodata)) nodata <- NA
+    else if (is.numeric(nodata)) nodata <- as.integer(nodata[1])
+    else stop("Argument nodata should be NA or an integer value")
+  }
+
+  if (length(classes) == 0 || !is.numeric(classes)) {
+    stop("Argument classes should be a vector of one or more integer values")
+  }
+
+  stopifnot(res > 0)
+
+  rbase <- raster::raster(extent(las), res = res)
+
+  ii <- las@data$Classification %in% classes
+  if (!any(ii)) {
+    r <- rbase
+    values(r) <- nodata
+  } else {
+    r <- rasterize(as.matrix(las@data[ii, c("X", "Y"), drop = FALSE]),
+                   rbase,
+                   field = las@data$Z[ii],
+                   fun = function(x, na.rm) {
+                     x <- na.omit(x)
+                     if (length(x) == 0) nodata
+                     else max(x)
+                   })
+  }
+
+  r
 }
 
 
@@ -1491,63 +1614,6 @@ get_las_bounds <- function(las, type = c("vec", "wkt", "sf")) {
     if (type == "wkt") sf::st_as_text(p)
     else p
   }
-}
-
-
-#' Metrics function for summary statistics
-#'
-#' @importFrom dplyr %>%
-#'
-#' @export
-#'
-layer_summary_metrics <- function(z, prob, breaks) {
-  labels <- 1:(length(breaks)-1)
-
-  zcat <- cut(
-    z,
-    breaks = breaks,
-    labels = labels,
-    right = TRUE)
-
-  dat <- data.frame(z, zcat)
-
-  x <- dat %>%
-    dplyr::group_by(zcat) %>%
-    dplyr::summarize(n = n(),
-              mean = mean(z),
-              median = median(z),
-              lwr = highest_density_interval(z, 0.5)[1],
-              upr = highest_density_interval(z, 0.5)[2])
-
-  if (length(z) == 1) {
-    bounds <- c(z, z)
-  } else {
-    bounds <- unname(hpdi.vec(z, prob))
-  }
-
-  list(mean = mean(z),
-       median = median(z),
-       lwr = bounds[1],
-       upr = bounds[2])
-}
-
-
-#' Calculate highest density interval for a vector of values
-#'
-#' @export
-#'
-highest_density_interval <- function (x, prob = 0.95) {
-  n <- length(x)
-  if (n <= 1) stop("x must have more than 1 element")
-  x <- sort(x)
-
-  gap <- max(1, min(n - 1, round(n * prob)))
-  init <- 1:(n - gap)
-
-  inds <- which.min(x[init + gap] - x[init])
-
-  out <- c(lower = x[inds], upper = x[inds + gap])
-  out
 }
 
 

@@ -18,6 +18,8 @@
 #' }
 "StrataSpecht"
 
+#' (Almost) uniform vertical strata
+#'
 #' Mostly regular strata from 0 - 30m, plus a catch-all stratum for >30m.
 #' The lowest two strata are 0-0.3m and 0.3-0.5m. Subsequent strata are
 #' 0.5m intervals up to 30m.
