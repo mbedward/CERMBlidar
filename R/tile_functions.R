@@ -963,7 +963,7 @@ remove_flightline_overlap <- function(las,
   o <- fline.dat$orientation[ fline.dat$included ]
   ok <- (o[1] %in% c("NS", "EW")) && all(o == o[1])
   if (!ok) {
-    warning("Flight lines have inconsistent orientation. Cannot check overlaps.")
+    stop("Flight lines have inconsistent orientation. Cannot check overlaps.")
     return(las)
   }
 
