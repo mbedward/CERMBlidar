@@ -142,7 +142,6 @@ prepare_tile <- function(path,
   treat.as.ground <- na.omit(treat.as.ground)
   if (length(treat.as.ground) == 0) treat.as.ground <- c(2,9)
 
-
   # Vector to hold paths to (possibly) unzipped las and dem files
   unz.files <- character(0)
 
