@@ -4,8 +4,8 @@
 \alias{prepare_tile}
 \title{Import and prepare a LAS tile for further processing}
 \usage{
-prepare_tile(path, normalize.heights = "tin", treat.as.ground = 9,
-  drop.negative = TRUE, fields = NULL, classes = NULL,
+prepare_tile(path, normalize.heights = "tin", treat.as.ground = c(2,
+  9), drop.negative = TRUE, fields = NULL, classes = NULL,
   min.points = 1000, flight.gap = 60, unzip.dir = NULL)
 }
 \arguments{
@@ -47,14 +47,12 @@ ground level. Can be one of the following:
 If point heights are normalized, the original values are copied to a new
 data table column: 'Zref'.}
 
-\item{treat.as.ground}{Point classes to treat as ground points in addition to
-class 2. If point heights are being normalized by interpolating ground
-points using one of the lidR package algorithms (\code{'tin', 'knnidw',
-'kriging'}), this argument allows other point classes to also be treated as
-ground. If point heights are being normalized from a raster DEM, any
-classes specified by this argument will have their normalized heights set
-to zero. The default value is class 9 (water). Set to NULL or an empty
-vector to only consider class 2 points as ground.}
+\item{treat.as.ground}{Point classes to treat as ground points when
+normalizing point heights by interpolation using one of the lidR package
+algorithms (\code{'tin', 'knnidw', 'kriging'}). If point heights are being
+normalized from a raster DEM, any classes specified by this argument will
+have their normalized heights set to zero. The default value \code{c(2,9)}
+specifies ground and water classes.}
 
 \item{drop.negative}{If TRUE, any points (other than ground and water points)
 whose heights are below ground level (as estimated by interpolation of
