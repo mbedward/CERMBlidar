@@ -21,6 +21,118 @@ mandatory_input_fields <- function() {
 }
 
 
+#' Get bounds from the header of a LAS file or object
+#'
+#' This function reads the bounding coordinates and projection information from
+#' the header of either a LAS file on disk (either compressed or uncompressed)
+#' or LAS object imported via \code{prepare_tile}. The bounds are returned as
+#' either a named vector, an EWKT (Extended Well Known Text) string specifier,
+#' or a simple feature geometry list object (class \code{sf::st_sfc}) containing
+#' a single polygon.
+#'
+#' @param x Either a character string specifying the path to a file, or a
+#'   \code{LAS} object (e.g. imported using function \code{prepare_tile}).
+#'   If a path, the file can be an uncompressed tile (\code{.las}), a
+#'   compressed tile (\code{.laz}) or a zip file containing a \code{.las}
+#'   file.
+#'
+#' @param type Either \code{'vec'} (default) to return a named vector of min and
+#'   max coordinates and EPSG code; \code{'wkt'} to return an EWKT text string,
+#'   or \code{'sf'} to return a geometry list containing the bounding polygon.
+#'
+#' @param unzip.dir The directory in which to uncompress a compressed LAS file
+#'   (identified by a '.zip' extension). If \code{NULL} (default) a temporary
+#'   directory will be used. After processing, the uncompressed file will be
+#'   deleted. Ignored if \code{x} is a LAS object or the path to a LAS or LAZ
+#'   file.
+#'
+#' @return The bounding polygon in the format specified by the \code{type}
+#'   argument.
+#'
+#' @examples
+#' \dontrun{
+#' # Read bounds from a zipped LAS file and return as a vector
+#' bounds <- get_las_bounds("c:/somewhere/myfile.zip")
+#'
+#' # Get bounds as an 'sf' polygon geometry list
+#' bounds <- get_las_bounds("c:/somewhere/myfile.zip", type = "sf")
+#' print(bounds)
+#' plot(bounds)
+#'
+#' # Same thing for an imported LAS object
+#' las <- prepare_tile("c:/somewhere/myfile.zip")
+#' bounds <- get_las_bounds(las, type = "sf")
+#' }
+#'
+#' @export
+#'
+get_las_bounds <- function(x, type = c("vec", "wkt", "sf"), unzip.dir = NULL) {
+  type <- match.arg(type)
+
+  if (inherits(x, "LAS")) {
+    hdr <- as.list(las@header)
+
+  } else if (is.character(x)) {
+    if (length(x) > 1) {
+      warning("Presently only one path element is supported. Ignoring extra elements.")
+      x <- x[1]
+    }
+
+    if (!file.exists(x)) stop("File not found: ", x)
+
+    unz.files <- character(0)
+    if (.is_zipped(x)) {
+      if (is.null(unzip.dir)) unzip.dir <- tempdir(check = TRUE)
+
+      # allow for the possibility that there are other files in the zip file as well
+      # as the LAS file
+      unz.files <- utils::unzip(x, overwrite = TRUE, exdir = unzip.dir)
+
+      las.file <- stringr::str_subset(unz.files, "\\.(las|LAS)$")
+      n <- length(las.file)
+
+      if (n == 0) {
+        stop("zip file does not contain a file with extension las or LAS")
+      }
+      else if (n > 1) {
+        stop("zip file contains multiple LAS files")
+      }
+    } else {
+      las.file <- x
+    }
+
+    hdr <- rlas::read.lasheader(las.file)
+    if (length(unz.files) > 0) unlink(unz.files)
+  }
+
+  lims <- c(minx = hdr[["Min X"]],
+            maxx = hdr[["Max X"]],
+            miny = hdr[["Min Y"]],
+            maxy = hdr[["Max Y"]],
+            epsg = lidR::epsg( lidR::LASheader(hdr) ) )
+
+  if (type == "vec") {
+    lims
+
+  } else {
+    ii <- c(1,3, 1,4, 2,4, 2,3, 1,3)
+    v <- matrix(
+      c(lims['minx'], lims['miny'],
+        lims['minx'], lims['maxy'],
+        lims['maxx'], lims['maxy'],
+        lims['maxx'], lims['miny'],
+        lims['minx'], lims['miny']),
+      ncol = 2, byrow = TRUE)
+
+    p <- sf::st_polygon(list(v))
+    p <- sf::st_sfc(p, crs = lims['epsg'])
+
+    if (type == "wkt") sf::st_as_text(p, EWKT = TRUE)
+    else p
+  }
+}
+
+
 #' Import and prepare a LAS tile for further processing
 #'
 #' This function imports data from a LAS file and prepares it for further
@@ -1565,44 +1677,6 @@ get_class_frequencies <- function(las) {
   }
 
   as.list(x)
-}
-
-
-#' Get the bounding rectangle of the point cloud
-#'
-#' This function constructs a polygon based on the minimum and maximum X and Y
-#' ordinates in the LAS data table, and returns it as either a named vector, a
-#' WKT (Well Known Text) string specifier, or an \code{sf} polygon object.
-#'
-#' @param las A LAS object.
-#'
-#' @param type Either \code{'vec'} (default) to return a named vector of min
-#'   and max coordinates; \code{'wkt'} to return a WKT text string, or
-#'   \code{'sf'} to return a polygon object.
-#'
-#' @return The bounding polygon in the format specified by the \code{type}
-#'   argument.
-#'
-#' @export
-#'
-get_las_bounds <- function(las, type = c("vec", "wkt", "sf")) {
-  type <- match.arg(type)
-  outfn <- ifelse(type == "wkt", sf::st_as_text, base::identity)
-
-  xys <- c(range(las@data$X), range(las@data$Y))
-
-  if (type == "vec") {
-    c('xmin' = xys[1], 'xmax' = xys[2], 'ymin' = xys[3], 'ymax' = xys[4])
-
-  } else {
-    ii <- c(1,3, 1,4, 2,4, 2,3, 1,3)
-    v <- matrix(xys[ii], ncol = 2, byrow = TRUE)
-
-    p <- sf::st_polygon(list(v))
-
-    if (type == "wkt") sf::st_as_text(p)
-    else p
-  }
 }
 
 

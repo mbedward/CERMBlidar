@@ -2,23 +2,52 @@
 % Please edit documentation in R/tile_functions.R
 \name{get_las_bounds}
 \alias{get_las_bounds}
-\title{Get the bounding rectangle of the point cloud}
+\title{Get bounds from the header of a LAS file or object}
 \usage{
-get_las_bounds(las, type = c("vec", "wkt", "sf"))
+get_las_bounds(x, type = c("vec", "wkt", "sf"), unzip.dir = NULL)
 }
 \arguments{
-\item{las}{A LAS object.}
+\item{x}{Either a character string specifying the path to a file, or a
+\code{LAS} object (e.g. imported using function \code{prepare_tile}).
+If a path, the file can be an uncompressed tile (\code{.las}), a
+compressed tile (\code{.laz}) or a zip file containing a \code{.las}
+file.}
 
-\item{type}{Either \code{'vec'} (default) to return a named vector of min
-and max coordinates; \code{'wkt'} to return a WKT text string, or
-\code{'sf'} to return a polygon object.}
+\item{type}{Either \code{'vec'} (default) to return a named vector of min and
+max coordinates and EPSG code; \code{'wkt'} to return an EWKT text string,
+or \code{'sf'} to return a geometry list containing the bounding polygon.}
+
+\item{unzip.dir}{The directory in which to uncompress a compressed LAS file
+(identified by a '.zip' extension). If \code{NULL} (default) a temporary
+directory will be used. After processing, the uncompressed file will be
+deleted. Ignored if \code{x} is a LAS object or the path to a LAS or LAZ
+file.}
 }
 \value{
 The bounding polygon in the format specified by the \code{type}
   argument.
 }
 \description{
-This function constructs a polygon based on the minimum and maximum X and Y
-ordinates in the LAS data table, and returns it as either a named vector, a
-WKT (Well Known Text) string specifier, or an \code{sf} polygon object.
+This function reads the bounding coordinates and projection information from
+the header of either a LAS file on disk (either compressed or uncompressed)
+or LAS object imported via \code{prepare_tile}. The bounds are returned as
+either a named vector, an EWKT (Extended Well Known Text) string specifier,
+or a simple feature geometry list object (class \code{sf::st_sfc}) containing
+a single polygon.
+}
+\examples{
+\dontrun{
+# Read bounds from a zipped LAS file and return as a vector
+bounds <- get_las_bounds("c:/somewhere/myfile.zip")
+
+# Get bounds as an 'sf' polygon geometry list
+bounds <- get_las_bounds("c:/somewhere/myfile.zip", type = "sf")
+print(bounds)
+plot(bounds)
+
+# Same thing for an imported LAS object
+las <- prepare_tile("c:/somewhere/myfile.zip")
+bounds <- get_las_bounds(las, type = "sf")
+}
+
 }
