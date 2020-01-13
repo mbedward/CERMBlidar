@@ -70,7 +70,7 @@ get_las_bounds <- function(x, type = c("vec", "wkt", "sf"), unzip.dir = NULL) {
   type <- match.arg(type)
 
   if (inherits(x, "LAS")) {
-    hdr <- as.list(las@header)
+    hdr <- as.list(x@header)
 
   } else if (is.character(x)) {
     if (length(x) > 1) {
@@ -115,7 +115,6 @@ get_las_bounds <- function(x, type = c("vec", "wkt", "sf"), unzip.dir = NULL) {
     lims
 
   } else {
-    ii <- c(1,3, 1,4, 2,4, 2,3, 1,3)
     v <- matrix(
       c(lims['minx'], lims['miny'],
         lims['minx'], lims['maxy'],
