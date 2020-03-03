@@ -4,14 +4,22 @@
 \alias{plot_flightlines}
 \title{Plot point locations and flight lines}
 \usage{
-plot_flightlines(las, npts = 5000, shape = 16, size = 1)
+plot_flightlines(las, classes = c(2, 35), npts = 5000, shape = 16, size = 1)
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
 
-\item{npts}{Number of points to draw (default: 5000). The subset of
-points is selected to cover all combinations of flight line and
-point class.}
+\item{classes}{An integer vector specifying the point classes to display. May
+include 2 (ground), 3 (low veg), 4 (mid veg), 5 (high veg), 35 (all veg -
+the three vegetation classes combined), 6 (buildings) and 9 (water). The
+default is to display ground (2) and all vegetation combined (35).}
+
+\item{npts}{Number of points to sample from the LAS data for drawing.
+Sampling is done proportionally across combinations of point classes and
+flight lines, and the resulting number of rows in the \code{data} element
+of the returned ggplot object can vary slightly. If displaying many point
+classes, increasing this value from the default (5000) and decreasing the
+point size will produce nicer plots.}
 
 \item{shape}{Point shape, specified as an integer code as for gpplot and
 R base plot.}
@@ -22,17 +30,18 @@ R base plot.}
 A ggplot object.
 }
 \description{
-Displays points locations for a random sample of points from a LAS object,
-with points coloured by flight line ID. This is useful for detecting
-overlapping flightlines.
+Displays a random sample of points from a LAS object, coloured by flight line
+ID and facetted by point class. This is useful, for example, when diagnosing
+problems with overlapping flightlines or uneven point density.
 }
 \examples{
 \dontrun{
-# Quick plot
+# Default plot of points for ground (class 2) and combined
+# vegetation (classes 3-5).
 plot_flightlines(las)
 
-# Facet by point classes
-plot_flightlines(las) + facet_wrap(~ Classification)
+# Display the vegetation classes both separately and combined
+plot_flightlines(las, classes = c(3:5, 35))
 }
 
 }

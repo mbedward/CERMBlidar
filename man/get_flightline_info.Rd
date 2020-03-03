@@ -4,8 +4,7 @@
 \alias{get_flightline_info}
 \title{Get summary information for flight line extents}
 \usage{
-get_flightline_info(las, angular.tol = 25, min.ratio = 1.2,
-  min.points = 1000)
+get_flightline_info(las, angular.tol = 25, min.ratio = 1.2, min.points = 1000)
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}

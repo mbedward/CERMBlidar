@@ -4,9 +4,17 @@
 \alias{prepare_tile}
 \title{Import and prepare a LAS tile for further processing}
 \usage{
-prepare_tile(path, normalize.heights = "tin", treat.as.ground = c(2,
-  9), drop.negative = TRUE, fields = NULL, classes = NULL,
-  min.points = 1000, flight.gap = 60, unzip.dir = NULL)
+prepare_tile(
+  path,
+  normalize.heights = "tin",
+  treat.as.ground = c(2, 9),
+  drop.negative = TRUE,
+  fields = NULL,
+  classes = NULL,
+  min.points = 1000,
+  flight.gap = 60,
+  unzip.dir = NULL
+)
 }
 \arguments{
 \item{path}{Path to the LAS or LAZ format file to process. If the file

@@ -974,249 +974,26 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 }
 
 
-#' Remove overlap between flight lines.
-#'
-#' This function identifies areas of overlap between pairs of flight lines,
-#' places a boundary along (approximately) the middle of the overlap area, and
-#' removes points from each side that belong to the flight line (mainly) on the
-#' other side. Before searching for, and removing, overlaps the function checks
-#' that all flight lines have consistent orientation, ie. either all are
-#' north-south or all are east-west. If this is not the case a warning message
-#' is issued and the original, unmodified tile is returned.
-#'
-#' We added this function because LIDAR data provided for New South Wales in
-#' 2018 had overlap between flight lines removed for all point classes other
-#' than class 5 (high vegetation). Note that in some cases there can be overlap
-#' between bounding rectangles of flight lines returned by the function
-#' \code{get_flightline_info} but no overlap for points in the class(es) being
-#' considered by this function.
-#'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
-#'
-#' @param classes Vector of one or more integer codes for point classes to consider.
-#'
-#' @param res Raster cell size to use when identifying overlap regions. Default
-#'   value is 10 which assumes that map units are metres.
-#'
-#' @param buffer Width of a buffer (map units) placed around the tile to ensure
-#'   that the boundaries partitioning overlap areas extend beyond all points.
-#'   Default value is 100 which assumes map units are metres.
-#'
-#' @param ... Additional arguments to pass to \code{link{get_flightline_info}}
-#'   when checking for consistent north-south or east-west orientation.
-#'
-#' @param min.points The minimum number of points in the relevant point classes
-#'   for a flight line to be considered. Flight lines with fewer points are
-#'   ignored. If less than two flight lines have sufficient points the LAS
-#'   object is returned unchanged.
-#'
-#' @return A modified copy of the input LAS object.
-#'
-#' @seealso \code{\link{get_flightline_info}}, \code{\link{check_flightlines}},
-#'   \code{\link{plot_flightlines}}
-#'
-#' @export
-#'
-remove_flightline_overlap <- function(las,
-                                      classes = 5, res = 10, buffer = 100,
-                                      min.points = 1000,
-                                      ...) {
-
-  flines <- sort(unique(las@data$flightlineID))
-  nlines <- length(flines)
-
-  if (nlines == 1) {
-    message("Tile only contains one flight line. Nothing to do.")
-    return(las)
-  }
-
-  # Get flight line info (bounding rectangles etc) and check for
-  # consistent orientation
-  fline.dat <- get_flightline_info(las, min.points = 0, ...)
-
-  # Check that each flight line has sufficient points in the classes being
-  # considered
-  x <- table(las@data[, c("flightlineID", "Classification")])[, as.character(classes), drop=FALSE]
-  x <- rowSums(x) >= min.points
-
-  fline.dat <- fline.dat %>%
-    dplyr::mutate(included = x)
-
-  if (!any(fline.dat$included)) {
-    warning("No flight lines have sufficient points in relevant classes. LAS object is unchanged.")
-    return(las)
-  }
-
-  # Remove any flight lines with too few points in the relevant classes
-  # from further consideration
-  fline.dat <- dplyr::filter(fline.dat, included)
-  flines <- fline.dat$flightlineID
-
-  if (nrow(fline.dat) == 1) {
-    message("Only one flight line with sufficient points was retained.")
-    return(las)
-  }
-
-
-  # At least two flight lines have sufficient points...
-  #
-  o <- fline.dat$orientation[ fline.dat$included ]
-  ok <- (o[1] %in% c("NS", "EW")) && all(o == o[1])
-  if (!ok) {
-    stop("Flight lines have inconsistent orientation. Cannot check overlaps.")
-    return(las)
-  }
-
-  # Better variable name for code below
-  orientation <- o[1]
-
-  # Record extent of tile
-  tile.xlims <- range(las@data$X) + c(-buffer, buffer)
-  tile.ylims <- range(las@data$Y) + c(-buffer, buffer)
-
-  # Indices of points to examine
-  irecs <- which(las@data$Classification %in% classes)
-
-  # Flag vector to mark points for removal
-  to.remove <- logical(length(irecs))
-
-  # Subset of point data for processing
-  dat <- as.matrix( las@data[irecs, c("X", "Y", "flightlineID")] )
-
-  # All pairwise combinations of flightlines
-  fline.pairs <- utils::combn(flines, 2)
-
-  for (i in 1:ncol(fline.pairs)) {
-    fline1 <- fline.pairs[1,i]
-    fline2 <- fline.pairs[2,i]
-
-    # Is there an overlap between this pair of lines?
-    indices <- match(c(fline1, fline2), fline.dat$flightlineID)
-    rect1 <- fline.dat$geometry[[indices[1]]]
-    rect2 <- fline.dat$geometry[[indices[2]]]
-    is.overlap <- sf::st_intersects(rect1, rect2, sparse=FALSE)[1,1]
-
-    if (is.overlap) {
-      active <- dat[,3] %in% c(fline1, fline2)
-
-      xyf <- dat[active, ]
-
-      # Further check that we have two flight lines in the subset of data.
-      # This is required because bounding polygons of the flight lines are based
-      # on all point classes whereas here we are (usually) only considering
-      # one or a few classes.
-      if (length(unique(xyf[,3])) > 1) {
-        remove <- .do_remove_overlap(xyf, res, tile.xlims, tile.ylims, orientation)
-
-        # Flag removal of points from the tile. The logical OR `|` is to
-        # take into account that a point might have already been flagged
-        # for removal when looking at a previous pair of flightlines.
-        to.remove[active] <- remove | to.remove[active]
-      }
-    }
-  }
-
-  # Remove flagged points from tile.
-  if (any(to.remove)) {
-    remove.recs <- irecs[to.remove]
-    keep.recs <- setdiff(1:nrow(las@data), remove.recs)
-    las@data <- las@data[keep.recs, ]
-    las <- update_tile_header(las)
-  }
-
-  las
-}
-
-
-# Private helper function for remove_flightline_overlaps
-#
-.do_remove_overlap <- function(xyf, res, tile.xlims, tile.ylims, orientation) {
-  lines <- sort(unique(xyf[,3]))
-  if (length(lines) != 2) stop("Bummer: bad data passed to .do_remove_overlap")
-
-  fline1 <- lines[1]
-  fline2 <- lines[2]
-
-  # Call C++ function to locate approximate median X for
-  # Y increments of `res`
-
-  mids <- get_overlap_midpoints(xyf, res, orientation == "NS")
-  # mids <- TEST_get_overlap_midpoints(xyf, res, orientation == "NS")
-
-  mids <- as.data.frame(mids)
-  colnames(mids) <- c("x", "y", "n")
-
-  # Check if there are many missing values for mid-point ordinates.
-  # This happens when there is no or very little overlap between
-  # the flight lines, or where one line only spans are small part
-  # of the tile. In either case, we will leave the data as-is.
-  #
-  is.na.row <- apply(mids, 1, function(xs) any(is.na(xs)))
-  if (sum(is.na.row) > nrow(mids) / 2) {
-    # No need to remove any points
-    remove <- rep(FALSE, nrow(xyf))
-
-  } else {
-    # Found an adequate number of overlap mid-points.
-    # Derive a boundary by fiting a smoothing spline.
-    if (orientation == "NS") {
-      m <- mgcv::gam(x ~ s(y), data = mids)
-      ys <- seq(tile.ylims[1], tile.ylims[2], length.out = 100)
-      xs <- mgcv::predict.gam(m, newdata = data.frame(y = ys))
-    } else { # "EW"
-      m <- mgcv::gam(y ~ s(x), data = mids)
-      xs <- seq(tile.xlims[1], tile.xlims[2], length.out = 100)
-      ys <- mgcv::predict.gam(m, newdata = data.frame(x = xs))
-    }
-
-    # browser()
-
-    # Identify points on one side of the boundary
-    if (orientation == "NS") {
-      pol.x <- c(xs, tile.xlims[1], tile.xlims[1], xs[1])
-      pol.y <- c(ys, tile.ylims[2], tile.ylims[1], ys[1])
-    } else { #EW
-      pol.x <- c(xs, tile.xlims[2], tile.xlims[1], xs[1])
-      pol.y <- c(ys, tile.ylims[2], tile.ylims[2], ys[1])
-    }
-
-    inside <- sp::point.in.polygon(xyf[,1], xyf[,2], pol.x, pol.y) > 0
-
-    # Identify flight line to assign on either side of the boundary
-    # The following steps try to allow for the fact that both lines
-    # might be more or less equally present on one side of the
-    # boundary
-    tbl <- table(xyf[,3], inside)
-    tbl <- apply(tbl, 2, function(vals) vals / sum(vals))
-    top <- which.max(tbl)
-    if (top == 2 | top == 3) {
-      in.fline <- fline1
-    } else {
-      in.fline <- fline2
-    }
-
-    # Remove a point if it is inside the polygon (on the reference side of the
-    # boundary) but does not belong to the inside flightline, OR it is outside
-    # (other side of the boundary) but belongs to the inside flightline.
-    remove <- inside != (xyf[,3] == in.fline)
-  }
-
-  remove
-}
-
-
 
 #' Plot point locations and flight lines
 #'
-#' Displays points locations for a random sample of points from a LAS object,
-#' with points coloured by flight line ID. This is useful for detecting
-#' overlapping flightlines.
+#' Displays a random sample of points from a LAS object, coloured by flight line
+#' ID and facetted by point class. This is useful, for example, when diagnosing
+#' problems with overlapping flightlines or uneven point density.
 #'
 #' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
-#' @param npts Number of points to draw (default: 5000). The subset of
-#'   points is selected to cover all combinations of flight line and
-#'   point class.
+#' @param classes An integer vector specifying the point classes to display. May
+#'   include 2 (ground), 3 (low veg), 4 (mid veg), 5 (high veg), 35 (all veg -
+#'   the three vegetation classes combined), 6 (buildings) and 9 (water). The
+#'   default is to display ground (2) and all vegetation combined (35).
+#'
+#' @param npts Number of points to sample from the LAS data for drawing.
+#'   Sampling is done proportionally across combinations of point classes and
+#'   flight lines, and the resulting number of rows in the \code{data} element
+#'   of the returned ggplot object can vary slightly. If displaying many point
+#'   classes, increasing this value from the default (5000) and decreasing the
+#'   point size will produce nicer plots.
 #'
 #' @param shape Point shape, specified as an integer code as for gpplot and
 #'   R base plot.
@@ -1225,49 +1002,98 @@ remove_flightline_overlap <- function(las,
 #'
 #' @return A ggplot object.
 #'
-#' @importFrom ggplot2 aes coord_equal element_blank ggplot geom_point theme
+#' @importFrom ggplot2 aes as_labeller coord_equal element_blank facet_wrap ggplot geom_point theme
 #'
 #' @examples
 #' \dontrun{
-#' # Quick plot
+#' # Default plot of points for ground (class 2) and combined
+#' # vegetation (classes 3-5).
 #' plot_flightlines(las)
 #'
-#' # Facet by point classes
-#' plot_flightlines(las) + facet_wrap(~ Classification)
+#' # Display the vegetation classes both separately and combined
+#' plot_flightlines(las, classes = c(3:5, 35))
 #' }
 #'
 #' @export
 #'
-plot_flightlines <- function(las, npts = 5000, shape = 16, size = 1) {
-  prop <- min(1.0, 5000 / nrow(las@data))
+plot_flightlines <- function(las,
+                             classes = c(2, 35),
+                             npts = 5000,
+                             shape = 16,
+                             size = 1) {
 
-  if ("flightlineID" %in% colnames(las@data)) {
-    dat <- las@data %>%
-      as.data.frame() %>%
-      dplyr::group_by(flightlineID, Classification) %>%
-
-      dplyr::do({
-        N <- nrow(.)
-        n <- max(1, prop * N)
-        .[sample.int(N, n), ]
-      }) %>%
-
-      dplyr::ungroup() %>%
-
-      dplyr::mutate(flightline = factor(flightlineID))
-
-    ggplot(data = dat, aes(x = X, y = Y)) +
-      geom_point(aes(colour = flightline),
-                 shape = shape, size = size) +
-
-      coord_equal() +
-
-      theme(axis.ticks = element_blank(),
-            axis.text = element_blank())
+  if (!("flightlineID" %in% colnames(las@data))) {
+    stop("No flightlineID field found")
   }
-  else {
-    warning("No flightlineID field found")
+
+  prop <- min(1.0, npts / nrow(las@data))
+
+  ClassLookup <- data.frame(
+    code = c(2, 3, 4, 5, 35, 6, 9),
+    label = c('ground (2)',
+              'low veg (3)', 'mid veg (4)', 'high veg (5)', 'all veg (3-5)',
+              'building (6)', 'water (9)'),
+    stringsAsFactors = FALSE
+  )
+
+  if (length(classes) == 0) stop("One or more point classes should be specified")
+
+  classes <- unique(classes)
+  ok <- classes %in% ClassLookup$code
+  if (!all(ok)) {
+    stop("Unrecognized class(es): ", classes[!ok], "\n",
+         "Valid options: ", paste(ClassLookup$code, collapse = ", "))
   }
+
+  # Get data for required classes, allowing for the display of veg
+  # classes separately and/or combined
+  dat <- lapply(classes, function(cl) {
+    if (cl == 35) {
+      cldat <- las@data %>%
+        as.data.frame() %>%
+        dplyr::filter(Classification %in% 3:5) %>%
+        dplyr::mutate(Classification = 35)
+    } else {
+      cldat <- las@data %>%
+        as.data.frame() %>%
+        dplyr::filter(Classification == cl)
+    }
+
+    cldat
+  })
+
+  dat <- dplyr::bind_rows(dat)
+
+  dat <- dat %>%
+    dplyr::group_by(flightlineID, Classification) %>%
+
+    dplyr::do({
+      N <- nrow(.)
+      ns <- max(1, prop * N)
+      ii <- sample.int(N, ns)
+      .[ii, ]
+    }) %>%
+
+    dplyr::ungroup() %>%
+
+    dplyr::mutate(flightline = factor(flightlineID))
+
+
+  gg <- ggplot(data = dat, aes(x = X, y = Y)) +
+    geom_point(aes(colour = flightline),
+               shape = shape, size = size) +
+
+    coord_equal() +
+
+    theme(axis.ticks = element_blank(),
+          axis.text = element_blank())
+
+  ii <- ClassLookup$code %in% classes
+  labels <- ClassLookup$label[ii]
+  names(labels) <- ClassLookup$code[ii]
+  gg <- gg + facet_wrap(~ Classification, labeller = as_labeller(labels))
+
+  gg
 }
 
 
@@ -1391,26 +1217,24 @@ is_empty_tile <- function(las) {
 #'
 get_summary_counts <- function(las, res = 10, classes = NULL) {
 
-  ClassLookup <- list(
-    'ground' = 2,
-    'low veg' = 3,
-    'mid veg' = 4,
-    'high veg' = 5,
-    'all veg' = 35,
-    'building' = 6,
-    'water' = 9)
+  ClassLookup <- data.frame(
+    code = c(2, 3, 4, 5, 35, 6, 9),
+    label = c('ground',
+              'low veg', 'mid veg', 'high veg', 'all veg',
+              'building', 'water')
+  )
 
   if (is.null(classes) || length(classes) == 0) {
-    classes <- as.integer(ClassLookup)
-    indices <- 1:length(ClassLookup)
+    classes <- ClassLookup$code
 
   } else if (is.numeric(classes)) {
-    indices <- match(classes, ClassLookup)
-    if (anyNA(indices)) {
-      ii <- which(is.na(indices))
-      stop("Unrecognized or non-unique class(es): ", classes[ii], "\n",
-           "Valid options: ", paste(ClassLookup, collapse = ", "))
+    classes <- unique(classes)
+    ok <- classes %in% ClassLookup$code
+    if (!all(ok)) {
+      stop("Unrecognized class(es): ", classes[!ok], "\n",
+           "Valid options: ", paste(ClassLookup$code, collapse = ", "))
     }
+
   } else {
     stop("Argument classes should be NULL or a vector of one or more integers")
   }
@@ -1433,7 +1257,8 @@ get_summary_counts <- function(las, res = 10, classes = NULL) {
     r
   })
 
-  names(rr) <- names(ClassLookup)[indices]
+  ii <- match(classes, ClassLookup$code)
+  names(rr) <- ClassLookup$label[ii]
 
   raster::stack(rr)
 }
@@ -1720,61 +1545,6 @@ check_strata <- function(strata) {
     stop("Strata lookup table has overlapping strata")
 
   strata
-}
-
-
-#' Relate two definitions of strata
-#'
-#' Takes two strata definitions (e.g. StrataSpecht and StrataCERMB) and returns
-#' a list where the number of elements is equal to the number of strata in the
-#' first set, and each element is a vector with indices for strata in the
-#' second set.
-#'
-#' @param strata1 A data frame of strata definitions. Usually this should be
-#'   the set with the smaller number of strata.
-#'
-#' @param strata2 A data frame of strata definitions. Usually this should be
-#'   the set with the larger number of strata.
-#'
-#' @return A named list, where element names are taken from \code{strata1}
-#'   and each element is a vector of the indices of the related strata in
-#'   \code{strata2}.
-#'
-#' @export
-#'
-relate_strata <- function(strata1, strata2) {
-  strata1 <- check_strata(strata1)
-  strata2 <- check_strata(strata2)
-
-  n1 <- nrow(strata1)
-  n2 <- nrow(strata2)
-  Eps <- 1e-6
-
-  relations <- vector("list", n1)
-  for (i1 in 1:n1) {
-    lims1 <- c(strata1$lower[i1], strata1$upper[i1])
-    k <- ifelse(i1 == 1, 1, 1 + tail(relations[[i1-1]], 1))
-    ii <- sapply(k:n2, function(i2) {
-      .overlap(lims1, c(strata2$lower[i2] + Eps, strata2$upper[i2]))
-    })
-    relations[[i1]] <- (k-1) + which(ii)
-  }
-
-  names(relations) <- strata1$name
-
-  relations
-}
-
-.within <- function(x, lims) {
-  lims <- sort(lims)
-  x >= lims[1] && x < lims[2]
-}
-
-.overlap <- function(lims1, lims2) {
-  .within(lims1[1], lims2) ||
-    .within(lims1[2], lims2) ||
-    .within(lims2[1], lims1) ||
-    .within(lims2[2], lims1)
 }
 
 

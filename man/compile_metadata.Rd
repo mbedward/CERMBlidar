@@ -4,8 +4,7 @@
 \alias{compile_metadata}
 \title{Create a catalog of LAS tiles from HTML metadata}
 \usage{
-compile_metadata(path, dirs = "LAS", exts = "html",
-  extent.crs = 4326)
+compile_metadata(path, dirs = "LAS", exts = "html", extent.crs = 4326)
 }
 \arguments{
 \item{path}{Top of the directory tree containing tiles to catalog.}
