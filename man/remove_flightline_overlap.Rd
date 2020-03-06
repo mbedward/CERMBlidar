@@ -2,12 +2,14 @@
 % Please edit documentation in R/overlap_functions.R
 \name{remove_flightline_overlap}
 \alias{remove_flightline_overlap}
-\title{Remove overlap between flight lines.}
+\title{Correct for areas of overlap between flight lines.}
 \usage{
 remove_flightline_overlap(
   las,
+  algorithms = c("spline", "nibble"),
   classes = 5,
-  res = 10,
+  res.spline = 10,
+  res.nibble = res.spline/2,
   buffer = 100,
   min.points = 1000,
   ...
@@ -16,14 +18,28 @@ remove_flightline_overlap(
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
 
-\item{classes}{Vector of one or more integer codes for point classes to consider.}
+\item{algorithms}{A vector of algorithm names. Valid options are 'spline' and
+'nibble'. This argument can be used to restrict processing to just one
+algorithm. If both are specified (the default) the spline algorithm will
+always be tried first as it tends to produce better results but can fail if
+flight line orientation is inconsistent.}
 
-\item{res}{Raster cell size to use when identifying overlap regions. Default
-value is 10 which assumes that map units are metres.}
+\item{classes}{Vector of one or more integer codes for point classes to
+consider.}
+
+\item{res.spline}{Raster cell size to use when identifying flight line
+overlap areas using the spline algorithm. The default (10) assumes map
+units are metres.}
+
+\item{res.nibble}{Raster cell size to use when identifying and removing
+overlap areas using the nibble algorithm. The default is half of the
+\code{res.spline} value if specified, otherwise 5 (which assumes map units
+are metres).}
 
 \item{buffer}{Width of a buffer (map units) placed around the tile to ensure
-that the boundaries partitioning overlap areas extend beyond all points.
-Default value is 100 which assumes map units are metres.}
+that, for the 'spline' algorithm, the boundaries partitioning overlap areas
+extend beyond all points. Default value is 100 which assumes map units are
+metres.}
 
 \item{min.points}{The minimum number of points in the relevant point classes
 for a flight line to be considered. Flight lines with fewer points are
@@ -37,21 +53,46 @@ when checking for consistent north-south or east-west orientation.}
 A modified copy of the input LAS object.
 }
 \description{
-This function identifies areas of overlap between pairs of flight lines,
-places a boundary along (approximately) the middle of the overlap area, and
-removes points from each side that belong to the flight line (mainly) on the
-other side. Before searching for, and removing, overlaps the function checks
-that all flight lines have consistent orientation, ie. either all are
-north-south or all are east-west. If this is not the case a warning message
-is issued and the original, unmodified tile is returned.
+Airborne LiDAR images usually consist of points from two or more flight
+lines, with areas of overlap having a higher point density between adjacent
+lines. If all point classes are equally represented in overlap and
+non-overlap areas, estimates of derived quantities such as vegetation cover
+will be unaffected, other than a difference in precision between overlap and
+non-overlap areas. However, where the overlap has been removed post-hoc for
+some point classes, but remains for others, estimates will be inconsistent
+across the image. This has been the case for LiDAR data in New South Wales,
+where overlaps between flight lines were removed for all point classes other
+than class 5 (high vegetation). This function identifies areas of overlap,
+determines a boundary between the flight lines within each area, and removes
+points from the image such that each each flight line is strictly on one side
+of the boundary. Two algorithms are available: the first ('spline') identifies a vector
+boundary in continuous space; the second ('nibble') uses a raster approach that is more
+robust in the face of inconsistent flight line shapes and orientations, but
+can result in minor image artefacts in the form of reduced point density. By
+default, the spline boundary algorithm is tried first and, only if this
+fails, the nibble algorithm is applied. See details below.
 }
 \details{
-We added this function because LIDAR data provided for New South Wales in
-2018 had overlap between flight lines removed for all point classes other
-than class 5 (high vegetation). Note that in some cases there can be overlap
-between bounding rectangles of flight lines returned by the function
-\code{get_flightline_info} but no overlap for points in the class(es) being
-considered by this function.
+The spline boundary algorithm begins by identifying areas of overlap in
+raster space, then fitting a spline vector boundary along the middle of each
+area, and removes points from each side that belong to the flight line
+(mainly) on the other side. Before searching for, and removing, overlaps the
+function checks that all flight lines have consistent orientation: either all
+north-south or all are east-west, allowing for some leeway. If this is not
+the case, the algorithm will not proceed.
+
+The nibble algorithm also begins by identifying areas of overlap in raster
+space. Next it creates a raster where cells outside overlap areas are set to
+the integer flight line ID, while cells in overlap areas are set to missing
+values. A 'nibble' process (inspired by the ArcGIS raster algorithm of the
+same name) is then iteratively applied to replace the missing values with the
+majority value of neighbouring cells. This tends to produce a similar
+partitioning to the vector boundary algorithm for overlap areas that span the
+image, but also deals with irregular flight line orientations and shapes. The
+disadvantage of this algorithm is that it can leave narrow trails of reduced
+point density across the image if any pairs of flight lines abut rather than
+overlap. However, this effect can be minimized by working at a finer raster
+resolution.
 }
 \seealso{
 \code{\link{get_flightline_info}}, \code{\link{check_flightlines}},

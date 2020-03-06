@@ -1,30 +1,69 @@
-#' Remove overlap between flight lines.
+#' Correct for areas of overlap between flight lines.
 #'
-#' This function identifies areas of overlap between pairs of flight lines,
-#' places a boundary along (approximately) the middle of the overlap area, and
-#' removes points from each side that belong to the flight line (mainly) on the
-#' other side. Before searching for, and removing, overlaps the function checks
-#' that all flight lines have consistent orientation, ie. either all are
-#' north-south or all are east-west. If this is not the case a warning message
-#' is issued and the original, unmodified tile is returned.
+#' Airborne LiDAR images usually consist of points from two or more flight
+#' lines, with areas of overlap having a higher point density between adjacent
+#' lines. If all point classes are equally represented in overlap and
+#' non-overlap areas, estimates of derived quantities such as vegetation cover
+#' will be unaffected, other than a difference in precision between overlap and
+#' non-overlap areas. However, where the overlap has been removed post-hoc for
+#' some point classes, but remains for others, estimates will be inconsistent
+#' across the image. This has been the case for LiDAR data in New South Wales,
+#' where overlaps between flight lines were removed for all point classes other
+#' than class 5 (high vegetation). This function identifies areas of overlap,
+#' determines a boundary between the flight lines within each area, and removes
+#' points from the image such that each each flight line is strictly on one side
+#' of the boundary. Two algorithms are available: the first ('spline') identifies a vector
+#' boundary in continuous space; the second ('nibble') uses a raster approach that is more
+#' robust in the face of inconsistent flight line shapes and orientations, but
+#' can result in minor image artefacts in the form of reduced point density. By
+#' default, the spline boundary algorithm is tried first and, only if this
+#' fails, the nibble algorithm is applied. See details below.
 #'
-#' We added this function because LIDAR data provided for New South Wales in
-#' 2018 had overlap between flight lines removed for all point classes other
-#' than class 5 (high vegetation). Note that in some cases there can be overlap
-#' between bounding rectangles of flight lines returned by the function
-#' \code{get_flightline_info} but no overlap for points in the class(es) being
-#' considered by this function.
+#' The spline boundary algorithm begins by identifying areas of overlap in
+#' raster space, then fitting a spline vector boundary along the middle of each
+#' area, and removes points from each side that belong to the flight line
+#' (mainly) on the other side. Before searching for, and removing, overlaps the
+#' function checks that all flight lines have consistent orientation: either all
+#' north-south or all are east-west, allowing for some leeway. If this is not
+#' the case, the algorithm will not proceed.
+#'
+#' The nibble algorithm also begins by identifying areas of overlap in raster
+#' space. Next it creates a raster where cells outside overlap areas are set to
+#' the integer flight line ID, while cells in overlap areas are set to missing
+#' values. A 'nibble' process (inspired by the ArcGIS raster algorithm of the
+#' same name) is then iteratively applied to replace the missing values with the
+#' majority value of neighbouring cells. This tends to produce a similar
+#' partitioning to the vector boundary algorithm for overlap areas that span the
+#' image, but also deals with irregular flight line orientations and shapes. The
+#' disadvantage of this algorithm is that it can leave narrow trails of reduced
+#' point density across the image if any pairs of flight lines abut rather than
+#' overlap. However, this effect can be minimized by working at a finer raster
+#' resolution.
 #'
 #' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
 #'
-#' @param classes Vector of one or more integer codes for point classes to consider.
+#' @param algorithms A vector of algorithm names. Valid options are 'spline' and
+#'   'nibble'. This argument can be used to restrict processing to just one
+#'   algorithm. If both are specified (the default) the spline algorithm will
+#'   always be tried first as it tends to produce better results but can fail if
+#'   flight line orientation is inconsistent.
 #'
-#' @param res Raster cell size to use when identifying overlap regions. Default
-#'   value is 10 which assumes that map units are metres.
+#' @param classes Vector of one or more integer codes for point classes to
+#'   consider.
+#'
+#' @param res.spline Raster cell size to use when identifying flight line
+#'   overlap areas using the spline algorithm. The default (10) assumes map
+#'   units are metres.
+#'
+#' @param res.nibble Raster cell size to use when identifying and removing
+#'   overlap areas using the nibble algorithm. The default is half of the
+#'   \code{res.spline} value if specified, otherwise 5 (which assumes map units
+#'   are metres).
 #'
 #' @param buffer Width of a buffer (map units) placed around the tile to ensure
-#'   that the boundaries partitioning overlap areas extend beyond all points.
-#'   Default value is 100 which assumes map units are metres.
+#'   that, for the 'spline' algorithm, the boundaries partitioning overlap areas
+#'   extend beyond all points. Default value is 100 which assumes map units are
+#'   metres.
 #'
 #' @param ... Additional arguments to pass to \code{link{get_flightline_info}}
 #'   when checking for consistent north-south or east-west orientation.
@@ -42,7 +81,11 @@
 #' @export
 #'
 remove_flightline_overlap <- function(las,
-                                      classes = 5, res = 10, buffer = 100,
+                                      algorithms = c("spline", "nibble"),
+                                      classes = 5,
+                                      res.spline = 10,
+                                      res.nibble = res.spline / 2,
+                                      buffer = 100,
                                       min.points = 1000,
                                       ...) {
 
@@ -53,6 +96,54 @@ remove_flightline_overlap <- function(las,
     message("Tile only contains one flight line. Nothing to do.")
     return(las)
   }
+
+  algorithms <- match.arg(tolower(algorithms),
+                          choices = c("spline", "nibble"),
+                          several.ok = TRUE)
+
+  done <- FALSE
+  if ("spline" %in% algorithms) {
+    message("Trying spline boundary method...")
+    res <- .do_spline_remove_overlap(las,
+                                     classes = classes,
+                                     res = res.spline,
+                                     buffer = buffer,
+                                     min.points = min.points,
+                                     ...)
+
+    if (res$success) {
+      las <- res$las
+      done <- TRUE
+    }
+  }
+
+  if (!done && "nibble" %in% algorithms) {
+    message("Trying raster nibble method...")
+    res <- .do_nibble_remove_overlap(las,
+                                     classes = classes,
+                                     res = res.nibble,
+                                     min.points = min.points)
+
+    if (res$success) {
+      las <- res$las
+      done <- TRUE
+    }
+  }
+
+  if (done) las
+  else stop("Flight line overlap removal failed")
+}
+
+
+# Apply the spline overlap removal algorithm. Return a list with
+# elements 'success' (logical) and 'las'.
+#
+.do_spline_remove_overlap <- function(las,
+                                      classes,
+                                      res,
+                                      buffer,
+                                      min.points,
+                                      ...) {
 
   # Get flight line info (bounding rectangles etc) and check for
   # consistent orientation
@@ -67,8 +158,8 @@ remove_flightline_overlap <- function(las,
     dplyr::mutate(included = x)
 
   if (!any(fline.dat$included)) {
-    warning("No flight lines have sufficient points in relevant classes. LAS object is unchanged.")
-    return(las)
+    message("No flight lines have sufficient points in relevant classes. LAS object is unchanged.")
+    return(list(success = TRUE, las = las))
   }
 
   # Remove any flight lines with too few points in the relevant classes
@@ -78,7 +169,7 @@ remove_flightline_overlap <- function(las,
 
   if (nrow(fline.dat) == 1) {
     message("Only one flight line with sufficient points was retained.")
-    return(las)
+    return(list(success = TRUE, las = las))
   }
 
 
@@ -87,8 +178,8 @@ remove_flightline_overlap <- function(las,
   o <- fline.dat$orientation[ fline.dat$included ]
   ok <- (o[1] %in% c("NS", "EW")) && all(o == o[1])
   if (!ok) {
-    stop("Flight lines have inconsistent orientation. Cannot check overlaps.")
-    return(las)
+    message("Flight lines have inconsistent orientation.")
+    return(list(success = FALSE, las = las))
   }
 
   # Better variable name for code below
@@ -130,7 +221,11 @@ remove_flightline_overlap <- function(las,
       # on all point classes whereas here we are (usually) only considering
       # one or a few classes.
       if (length(unique(xyf[,3])) > 1) {
-        remove <- .do_remove_overlap(xyf, res, tile.xlims, tile.ylims, orientation)
+        remove <- .do_spline_remove_overlap_worker(xyf,
+                                                   res,
+                                                   tile.xlims,
+                                                   tile.ylims,
+                                                   orientation)
 
         # Flag removal of points from the tile. The logical OR `|` is to
         # take into account that a point might have already been flagged
@@ -148,13 +243,13 @@ remove_flightline_overlap <- function(las,
     las <- update_tile_header(las)
   }
 
-  las
+  list(success = TRUE, las = las)
 }
 
 
-# Private helper function for remove_flightline_overlaps
+# Private helper function for do_spline_remove_overlap
 #
-.do_remove_overlap <- function(xyf, res, tile.xlims, tile.ylims, orientation) {
+.do_spline_remove_overlap_worker <- function(xyf, res, tile.xlims, tile.ylims, orientation) {
   lines <- sort(unique(xyf[,3]))
   if (length(lines) != 2) stop("Bummer: bad data passed to .do_remove_overlap")
 
@@ -230,58 +325,59 @@ remove_flightline_overlap <- function(las,
 
 
 
-#' Remove overlap between flight lines using a raster approach
-#'
-#' @export
-#'
-remove_flightline_overlap2 <- function(las, res = 10, classes = 5) {
-  r <- .nibble_flightlines(las, res = res)$nibbled
-  target.id <- raster::extract(r, cbind(las@data$X, las@data$Y))
+# Apply the nibble overlap removal algorithm. Return a list with
+# elements 'success' (logical) and 'las'.
+#
+.do_nibble_remove_overlap <- function(las,
+                                      classes,
+                                      res,
+                                      min.points) {
 
-  target <- las@data$Classification %in% classes
+  # Only consider flight lines with sufficient points in the classes being
+  # considered. Any with less points are ignored (ie. their points are retained).
+  ii <- las@data$Classification %in% classes
+  x <- table(las@data[ii, "flightlineID"])
+  included.ids <- as.integer( names(x)[x > min.points] )
+
+  if (length(included.ids) == 0) {
+    message("No flight lines have sufficient points in relevant classes. LAS object is unchanged.")
+    return(list(success = TRUE, las = las))
+  }
+
+  keep <- rep(TRUE, nrow(las@data))
+
+  x <- .nibble_flightlines(las, res = res, flightline.ids = included.ids)
+  target.id <- raster::extract(x$nibbled, cbind(las@data$X, las@data$Y))
+
+  target <- las@data$Classification %in% classes &
+    las@data$flightlineID %in% included.ids
+
   keep <- !target | las@data$flightlineID == target.id
 
   las@data <- las@data[keep, ]
-  update_tile_header(las)
+  las <- update_tile_header(las)
+
+  list(success = TRUE, las = las)
 }
 
 
-# Return the majority value from a vector. If two or more values
-# are tied, choose randomly.
-.majority <- function(x, ...) {
+# Return the majority value from a vector of integer ID values.
+# If two or more values are tied, choose randomly. Values of
+# zero are never selected.
+.majority_id <- function(x, ...) {
   if (all(is.na(x))) NA
   else {
-    h <- sort(table(x))
-    x <- as.numeric(names(h))
-    ii <- which(h == max(h))
-    if (length(ii) == 1) x[ii]
-    else x[sample(ii, 1)]
+    x <- na.omit(x)
+    if (all(x == 0)) NA
+    else {
+      x <- x[x > 0]
+      h <- sort(table(x))
+      vals <- as.numeric(names(h))
+      ii <- which(h == max(h))
+      if (length(ii) == 1) vals[ii]
+      else vals[sample(ii, 1)]
+    }
   }
-}
-
-
-# Create a raster stack with a layer for each flight line and
-# point counts as cell values.
-.make_idcount_layers <- function(las, res = 10, classes = NULL) {
-  stopifnot("flightlineID" %in% colnames(las@data))
-
-  idmax <- max(las@data$flightlineID, na.rm = TRUE)
-
-  f <- function(ids, ...) {
-    tabulate(ids, nbins = idmax)
-  }
-
-  e <- extent(get_las_bounds(las)[1:4])
-
-  if (is.null(classes)) classes <- unique(las@data$Classification)
-  ii <- las@data$Classification %in% classes
-
-  r <- rasterize(cbind(las@data$X[ii], las@data$Y[ii]),
-                 raster(e, res = res),
-                 field = las@data$flightlineID[ii],
-                 fun = f,
-                 background = NA)
-  r
 }
 
 
@@ -301,8 +397,15 @@ remove_flightline_overlap2 <- function(las, res = 10, classes = 5) {
 
 # Create a raster layer of non-overlapping flight lines. Areas of overlap
 # are partitioned using a raster nibble approach.
-.nibble_flightlines <- function(las, res = 10, classes = NULL) {
-  r.idcounts <- .make_idcount_layers(las, res = res, classes = classes)
+.nibble_flightlines <- function(las, res = 10, flightline.ids = NULL) {
+  stopifnot("flightlineID" %in% colnames(las@data))
+
+  if (is.null(flightline.ids)) flightline.ids <- sort(unique(las@data$flightlineID))
+
+  r.idcounts <- .make_idcount_layers(las,
+                                     res = res,
+                                     flightline.ids = flightline.ids)
+
   r.base <- .make_idbase_layer(r.idcounts)
   r <- r.base
   w <- matrix(1, 3, 3)
@@ -311,10 +414,66 @@ remove_flightline_overlap2 <- function(las, res = 10, classes = 5) {
   if (nas) {
     w <- matrix(1, 3, 3)
     while(nas) {
-      r <- raster::focal(r, w, fun = .majority, na.rm = TRUE, pad = TRUE, NAonly = TRUE)
+      r <- raster::focal(r, w, fun = .majority_id, na.rm = TRUE, pad = TRUE, NAonly = TRUE)
       nas <- anyNA(values(r))
     }
   }
 
   list(base = r.base, nibbled = r)
+}
+
+
+# Create a raster stack with a layer for each flight line and
+# point counts as cell values.
+.make_idcount_layers <- function(las, res, flightline.ids = NULL) {
+  stopifnot("flightlineID" %in% colnames(las@data))
+
+  if (is.null(flightline.ids)) {
+    flightline.ids <- sort(unique(las@data$flightlineID))
+  } else {
+    flightline.ids <- sort(unique(flightline.ids))
+  }
+
+  ii <- las@data$flightlineID %in% flightline.ids
+
+  if (!any(ii)) stop("No points in specified flight lines")
+
+  dat <- las@data[ii, c("X", "Y", "flightlineID")]
+  id.max <- max(flightline.ids, na.rm = TRUE)
+  id.ind <- which((1:id.max) %in% flightline.ids)
+
+  f <- function(ids, ...) {
+    tabulate(ids, nbins = id.max)[id.ind]
+  }
+
+  e <- extent(get_las_bounds(las)[1:4])
+
+
+  r <- rasterize(dat[, c("X", "Y")],
+                 raster(e, res = res),
+                 field = dat$flightlineID,
+                 fun = f,
+                 background = 0)
+
+  names(r) <- paste("id", flightline.ids, sep = ".")
+
+  r
+}
+
+
+# Derive a starting raster of non-overlapping flightline IDs
+# from a raster stack of point counts. ID values are extracted
+# from layer names. Cells in overlap areas are assigned NA values.
+# Cells with zero point counts in all ID layers are assigned zero.
+#
+.make_idbase_layer <- function(r.ids) {
+  flightline.ids <- as.integer(stringr::str_extract(names(r.ids), "\\d+"))
+
+  calc(r.ids, fun = function(x, ...) {
+    b <- x > 0
+    n <- sum(b, na.rm = TRUE)
+    if (n == 1) flightline.ids[b]
+    else if (n > 1) NA
+    else 0
+  })
 }
