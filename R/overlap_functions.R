@@ -368,7 +368,7 @@ remove_flightline_overlap <- function(las,
   if (all(is.na(x))) NA
   else {
     x <- na.omit(x)
-    if (all(x == 0)) NA
+    if (all(x == 0)) 0  # no neighbours have any points
     else {
       x <- x[x > 0]
       h <- sort(table(x))
