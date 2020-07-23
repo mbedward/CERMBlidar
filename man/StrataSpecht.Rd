@@ -4,12 +4,14 @@
 \name{StrataSpecht}
 \alias{StrataSpecht}
 \title{Strata definitions based on Specht}
-\format{A data frame (tbl_df) with 5 rows and 3 columns:
+\format{
+A data frame (tbl_df) with 5 rows and 3 columns:
 \describe{
 \item{name}{Stratum name (LowShrub, TallShrub, LowTree, MediumTree, TallTree)}
 \item{lower}{Lower height of stratum (metres)}
 \item{upper}{Upper height of stratum (metres)}
-}}
+}
+}
 \usage{
 StrataSpecht
 }
