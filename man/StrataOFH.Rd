@@ -4,12 +4,14 @@
 \name{StrataOFH}
 \alias{StrataOFH}
 \title{Strata definitions for OFH (Overall Fuel Hazard)}
-\format{A data frame (tbl_df) with 4 rows and 3 columns:
+\format{
+A data frame (tbl_df) with 4 rows and 3 columns:
 \describe{
 \item{name}{Stratum name (NearSurface, Elevated, LowCanopy, UpperCanopy)}
 \item{lower}{Lower height of stratum (metres)}
 \item{upper}{Upper height of stratum (metres)}
-}}
+}
+}
 \usage{
 StrataOFH
 }

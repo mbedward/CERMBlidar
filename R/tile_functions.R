@@ -155,7 +155,7 @@ get_las_bounds <- function(x, type = c("vec", "wkt", "sf"), unzip.dir = NULL) {
 #'     \item{A logical value}{If \code{TRUE}, relative ground level is estimated from
 #'       an elevation surface fitted by triangulation to ground points in the
 #'       LAS file. This is equivalent to calling the
-#'       \code{\link[lidR]{lasnormalize}} function directly with the argument
+#'       \code{\link[lidR]{normalize_height}} function directly with the argument
 #'       \code{algorithm = tin()}. If \code{FALSE}, point heights will not be
 #'       normalized.}
 #'     \item{An algorithm name as a character string}{Point heights will be
@@ -336,7 +336,7 @@ prepare_tile <- function(path,
 
   if (do.normalize) {
     if (is.logical(normalize.heights)) { # must be TRUE
-      if (normalize.heights) las <- lidR::lasnormalize(las, algorithm = lidR::tin())
+      if (normalize.heights) las <- lidR::normalize_height(las, algorithm = lidR::tin())
 
     } else if (is.character(normalize.heights)) {
       # Check if string is an algorithm name
@@ -348,7 +348,7 @@ prepare_tile <- function(path,
                            knnidw = lidR::knnidw,
                            kriging = lidR::kriging)
 
-        las <- lidR::lasnormalize(las, algorithm = fn(), use_class = treat.as.ground)
+        las <- lidR::normalize_height(las, algorithm = fn(), use_class = treat.as.ground)
 
       } else {
         # String should be a raster file path
@@ -405,7 +405,7 @@ prepare_tile <- function(path,
   }
 
   # Add flight line indices based on GPS times for points
-  las <- lidR::lasflightline(las, dt = flight.gap)
+  las <- lidR::retrieve_flightlines(las, dt = flight.gap)
 
   if (min.points > 0) las <- filter_flightlines(las, min.points)
 
@@ -427,7 +427,7 @@ prepare_tile <- function(path,
     stop("No points lie within mask raster data cells")
   }
 
-  lidR::lasnormalize(las, algorithm = rdem)
+  lidR::normalize_height(las, algorithm = rdem)
 }
 
 
@@ -1393,8 +1393,19 @@ get_building_points <- function(las) {
 #' @export
 #'
 get_stratum_cover <- function(rcounts) {
+  if (!inherits(rcounts, c("RasterBrick", "RasterStack")))
+    stop("Input should be a RasterStack or RasterBrick object")
+
   N <- nlayers(rcounts)
   if (N < 2) stop("Expected at least two layers: ground plus one or more strata")
+
+  layernames <- names(rcounts)
+  if (length(layernames) == 0) {
+    warning("No layer names found. Assuming that layer 1 is ground point counts")
+  } else {
+    ok <- grepl("ground", layernames[1], ignore.case = TRUE)
+    if (!ok) stop("First layer name must be or contain 'ground' (case-insensitive)")
+  }
 
   rsum <- rcounts[[1]]
   rcover <- lapply(2:N, function(i) {

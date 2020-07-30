@@ -32,7 +32,7 @@ library(ggplot2)
 theme_set( theme_bw() )
 
 # Data directory on local machine
-DATA_DIR <- here("..", "test_data", "AHD")
+DATA_DIR <- here("..", "test_data", "Bega")
 
 ```
 

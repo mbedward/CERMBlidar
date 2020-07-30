@@ -4,12 +4,14 @@
 \name{StrataCERMB}
 \alias{StrataCERMB}
 \title{(Almost) uniform vertical strata}
-\format{A data frame (tbl_df) with 61 rows and 3 columns:
+\format{
+A data frame (tbl_df) with 61 rows and 3 columns:
 \describe{
 \item{name}{Stratum label ('to0.3', 'to0.5', 'to1.0' ... 'over30.0')}
 \item{lower}{Lower height of stratum (metres)}
 \item{upper}{Upper height of stratum (metres)}
-}}
+}
+}
 \usage{
 StrataCERMB
 }
