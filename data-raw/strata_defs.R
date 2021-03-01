@@ -27,11 +27,13 @@ StrataSpecht <- tribble(
 usethis::use_data(StrataSpecht, overwrite = TRUE)
 
 
-# Regular 50cm vertical strata up to 30m
+# CERMB strata:
+# Regular 50cm layers up to 10m, then 1m layers up to 30m, then 5m layers up to 80m,
+# then a catch-all
 
-library(dplyr)
+library(dplyr, warn.conflicts = FALSE)
 StrataCERMB <- tibble(
-  lower = c(-Inf, 0.3, seq(0.5, 30, 0.5)) ) %>%
+  lower = c(-Inf, 0.3, seq(0.5, 9.5, 0.5), seq(10, 29, 1), seq(30, 80, 5)) ) %>%
 
   mutate(upper = lead(lower),
          name = sprintf("to%.1f", upper)) %>%

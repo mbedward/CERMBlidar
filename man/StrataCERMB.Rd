@@ -3,7 +3,7 @@
 \docType{data}
 \name{StrataCERMB}
 \alias{StrataCERMB}
-\title{(Almost) uniform vertical strata}
+\title{Strata definitions for CERMB use.}
 \format{
 A data frame (tbl_df) with 61 rows and 3 columns:
 \describe{
@@ -16,8 +16,8 @@ A data frame (tbl_df) with 61 rows and 3 columns:
 StrataCERMB
 }
 \description{
-Mostly regular strata from 0 - 30m, plus a catch-all stratum for >30m.
 The lowest two strata are 0-0.3m and 0.3-0.5m. Subsequent strata are
-0.5m intervals up to 30m.
+0.5m intervals up to 10m; then 1m intervals up to 30m; then 5m
+intervals up to 80m; then a catch-all layer for >80m.
 }
 \keyword{datasets}
