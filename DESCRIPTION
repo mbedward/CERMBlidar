@@ -25,7 +25,7 @@ Suggests: testthat,
     rvest,
     xml2
 LinkingTo: Rcpp
-Depends: R (>= 3.5.0),
+Depends: R (>= 4.0.0),
   lidR (>= 3.1.0),
   raster
 Imports: Rcpp,

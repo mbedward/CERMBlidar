@@ -1393,8 +1393,19 @@ get_building_points <- function(las) {
 #' @export
 #'
 get_stratum_cover <- function(rcounts) {
+  if (!inherits(rcounts, c("RasterBrick", "RasterStack")))
+    stop("Input should be a RasterStack or RasterBrick object")
+
   N <- nlayers(rcounts)
   if (N < 2) stop("Expected at least two layers: ground plus one or more strata")
+
+  layernames <- names(rcounts)
+  if (length(layernames) == 0) {
+    warning("No layer names found. Assuming that layer 1 is ground point counts")
+  } else {
+    ok <- grepl("ground", layernames[1], ignore.case = TRUE)
+    if (!ok) stop("First layer name must be or contain 'ground' (case-insensitive)")
+  }
 
   rsum <- rcounts[[1]]
   rcover <- lapply(2:N, function(i) {
