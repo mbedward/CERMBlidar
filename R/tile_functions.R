@@ -1282,11 +1282,9 @@ get_summary_counts <- function(las, res = 10, classes = NULL) {
 #' @export
 #'
 get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5,9)) {
-
-  if (!is_prepared_tile(las))
-    stop("Argument 'las' must be a LAS object imported with prepare_tile\n",
-         "  and with point heights normalized to ground level")
-
+  if (!is_prepared_tile(las)) {
+    message("No Zref column. Assuming column Z is normalized heights")
+  }
   strata <- check_strata(strata)
 
   # Convert lower and upper strata heights to a set of cut-points
@@ -1365,8 +1363,9 @@ get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5,9)) {
 #' @export
 #'
 get_building_points <- function(las) {
-  if (!is_prepared_tile(las))
-    stop("Argument 'las' must be a LAS object imported with prepare_tile")
+  if (!is_prepared_tile(las)) {
+    message("No Zref column. Assuming column Z is normalized heights")
+  }
 
   dat <- las@data %>%
     as.data.frame() %>%
