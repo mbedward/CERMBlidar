@@ -348,7 +348,9 @@ prepare_tile <- function(path,
                            knnidw = lidR::knnidw,
                            kriging = lidR::kriging)
 
-        las <- lidR::normalize_height(las, algorithm = fn(), use_class = treat.as.ground)
+        # Note the na.rm argument to avoid the process aborting if one or more points
+        # cannot be normalized
+        las <- lidR::normalize_height(las, algorithm = fn(), use_class = treat.as.ground, na.rm = TRUE)
 
       } else {
         # String should be a raster file path
