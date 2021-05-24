@@ -187,10 +187,13 @@ get_las_bounds <- function(x, type = c("vec", "wkt", "sf"), unzip.dir = NULL) {
 #'   have their normalized heights set to zero. The default value \code{c(2,9)}
 #'   specifies ground and water classes.
 #'
-#' @param drop.negative If TRUE, any points (other than ground and water points)
-#'   whose heights are below ground level (as estimated by interpolation of
-#'   ground point heights are read from a raster DEM) are adjusted to have a
-#'   height value of zero. Ignored if point heights are not being normalized.
+#' @param drop.negative If \code{TRUE} AND point heights are being normalized,
+#'   any points whose heights are more than \code{drop.negative.threshold} below
+#'   ground level will be discarded.
+#'
+#' @param drop.negative.threshold If \code{drop.negative} is \code{TRUE} AND
+#'   point heights are being normalized, any heights more than this threshold
+#'   value below ground level will be discarded. Default value is zero.
 #'
 #' @param fields Either \code{NULL} (default) to include all data fields, or a
 #'   character string containing single-letter abbreviations for selected
@@ -228,6 +231,7 @@ prepare_tile <- function(path,
                          normalize.heights = "tin",
                          treat.as.ground = c(2,9),
                          drop.negative = TRUE,
+                         drop.negative.threshold = 0,
                          fields = NULL,
                          classes = NULL,
                          min.points = 1000,
@@ -321,7 +325,7 @@ prepare_tile <- function(path,
 
   las <- lidR::readLAS(las.file, select = fields, filter = filtertxt)
 
-  # Check that the tile has some points (rarely we encouter empty tiles)
+  # Check that the tile has some points (rarely we encounter empty tiles)
   if (is_empty_tile(las)) {
     warning("Point cloud is empty in tile: ", path)
     return(las)
@@ -395,10 +399,11 @@ prepare_tile <- function(path,
            "a character string or a RasterLayer")
     }
 
-    # set any negative ground heights to zero
+    # discard any points more than the threshold value below ground level
     if (drop.negative) {
-      ii <- las@data$Z < 0 & !(las@data$Classification %in% c(2,9))
-      las@data[ ii, "Z" ] <- 0
+      # Treat threshold value as height below zero
+      ii <- las@data$Z < -abs(drop.negative.threshold)
+      las@data <- las@data[!ii, ]
     }
 
     # Set the normalized height of all ground points to zero

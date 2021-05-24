@@ -9,6 +9,7 @@ prepare_tile(
   normalize.heights = "tin",
   treat.as.ground = c(2, 9),
   drop.negative = TRUE,
+  drop.negative.threshold = 0,
   fields = NULL,
   classes = NULL,
   min.points = 1000,
@@ -62,10 +63,13 @@ normalized from a raster DEM, any classes specified by this argument will
 have their normalized heights set to zero. The default value \code{c(2,9)}
 specifies ground and water classes.}
 
-\item{drop.negative}{If TRUE, any points (other than ground and water points)
-whose heights are below ground level (as estimated by interpolation of
-ground point heights are read from a raster DEM) are adjusted to have a
-height value of zero. Ignored if point heights are not being normalized.}
+\item{drop.negative}{If \code{TRUE} AND point heights are being normalized,
+any points whose heights are more than \code{drop.negative.threshold} below
+ground level will be discarded.}
+
+\item{drop.negative.threshold}{If \code{drop.negative} is \code{TRUE} AND
+point heights are being normalized, any heights more than this threshold
+value below ground level will be discarded. Default value is zero.}
 
 \item{fields}{Either \code{NULL} (default) to include all data fields, or a
 character string containing single-letter abbreviations for selected
