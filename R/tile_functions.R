@@ -781,6 +781,30 @@ get_flightline_info <- function(las,
     dplyr::ungroup()
 
 
+  # Helper function to determine flight line direction in
+  # the dplyr pipeline below. Also makes it easier to run
+  # in a debugging session.
+  fn_get_timetrend <- function(dat) {
+    nrecs <- nrow(dat)
+
+    if (nrecs > 1000) ii <- sample.int(nrecs, 1000)
+    else ii <- 1:nrecs
+
+    dat <- dat[ii, ]
+
+    model <- lm(dtime ~ X + Y, data = dat)
+    pdat <- expand.grid(X = range(dat$X), Y = range(dat$Y)) %>% dplyr::arrange(X, Y)
+    p <- predict(model, newdata = pdat)
+    dtX <- abs(p[1] - p[3])
+    dtY <- abs(p[1] - p[2])
+
+    otime <- ifelse(dtY > 2 * dtX, "NS", ifelse(dtX > 2 * dtY, "EW", "XX"))
+
+    data.frame(dtX, dtY, orientation.time = otime,
+               stringsAsFactors = FALSE)
+  }
+
+
   # GPS point time trend along X and Y dimensions for each flight line
   # and orientation inferred from this
   timetrend <- las@data %>%
@@ -792,25 +816,7 @@ get_flightline_info <- function(las,
 
     dplyr::mutate(dtime = gpstime - min(gpstime)) %>%
 
-    dplyr::do({
-      nrecs <- nrow(.)
-
-      if (nrecs > 1000) ii <- sample.int(nrecs, 1000)
-      else ii <- 1:nrecs
-
-      dat <- .[ii, ]
-
-      model <- lm(dtime ~ X + Y, data = dat)
-      pdat <- expand.grid(X = range(dat$X), Y = range(dat$Y)) %>% dplyr::arrange(X, Y)
-      p <- predict(model, newdata = pdat)
-      dtX <- abs(p[1] - p[3])
-      dtY <- abs(p[1] - p[2])
-
-      otime <- ifelse(dtY > 2 * dtX, "NS", ifelse(dtX > 2 * dtY, "EW", "XX"))
-
-      data.frame(dtX, dtY, orientation.time = otime,
-                 stringsAsFactors = FALSE)
-    })
+    dplyr::do(fn_get_timetrend(.))
 
 
   rects <- dplyr::left_join(rects, timetrend,
