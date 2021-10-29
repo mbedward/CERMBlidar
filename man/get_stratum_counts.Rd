@@ -7,7 +7,7 @@
 get_stratum_counts(las, strata, res = 10, classes = c(2, 3, 4, 5, 9))
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
+\item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
 
 \item{strata}{A data frame of strata definitions with three columns:
 name, lower, upper.}

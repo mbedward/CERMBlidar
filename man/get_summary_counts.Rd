@@ -7,7 +7,7 @@
 get_summary_counts(las, res = 10, classes = NULL)
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
+\item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
 
 \item{res}{Raster cell size. The default value is 10 which assumes that
 the LAS data is in a projected coordinate system with metres as units.}

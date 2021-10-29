@@ -7,7 +7,7 @@
 get_point_density(las)
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
+\item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
 }
 \value{
 The average point density as a single value.

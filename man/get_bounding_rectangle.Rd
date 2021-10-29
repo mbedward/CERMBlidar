@@ -7,7 +7,7 @@
 get_bounding_rectangle(las, classes = "all", flightlines = "all")
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
+\item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
 
 \item{classes}{Point classes to include: either a vector of integer class
 numbers or the string \code{'all'} (default).}

@@ -7,7 +7,7 @@
 get_scan_times(las, by)
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
+\item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
 
 \item{by}{One of 'all' (default) or 'flightline'. Case-insensitive and may
 be abbreviated.}

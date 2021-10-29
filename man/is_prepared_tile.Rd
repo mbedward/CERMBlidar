@@ -7,13 +7,13 @@
 is_prepared_tile(las)
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
+\item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
 }
 \value{
 TRUE if the tile has been prepared or FALSE otherwise.
 }
 \description{
-When a LAS tile is imported using the \code{\link{prepare_tile}} function,
+When a LAS tile is imported using the \code{prepare_tile} function,
 point heights are normalized relative to ground elevation and flight lines
 are identified. This results in two extra columns (Zref and flightlineID)
 being added to the LAS data table. This function checks that these two

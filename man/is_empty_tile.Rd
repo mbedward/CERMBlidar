@@ -7,7 +7,7 @@
 is_empty_tile(las)
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
+\item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
 }
 \value{
 TRUE if the point cloud is empty.

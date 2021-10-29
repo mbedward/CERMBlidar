@@ -7,7 +7,7 @@
 update_tile_header(las)
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
+\item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
 }
 \value{
 A LAS object with header information updated, if necessary, to

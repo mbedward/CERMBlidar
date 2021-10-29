@@ -1,23 +1,32 @@
-#' Correct for areas of overlap between flight lines.
+#' Correct biased point class frequency in overlap between flight lines
 #'
-#' Airborne LiDAR images usually consist of points from two or more flight
-#' lines, with areas of overlap having a higher point density between adjacent
-#' lines. If all point classes are equally represented in overlap and
-#' non-overlap areas, estimates of derived quantities such as vegetation cover
-#' will be unaffected, other than a difference in precision between overlap and
-#' non-overlap areas. However, where the overlap has been removed post-hoc for
-#' some point classes, but remains for others, estimates will be inconsistent
-#' across the image. This has been the case for LiDAR data in New South Wales,
-#' where overlaps between flight lines were removed for all point classes other
-#' than class 5 (high vegetation). This function identifies areas of overlap,
-#' determines a boundary between the flight lines within each area, and removes
-#' points from the image such that each each flight line is strictly on one side
-#' of the boundary. Two algorithms are available: the first ('spline') identifies a vector
-#' boundary in continuous space; the second ('nibble') uses a raster approach that is more
-#' robust in the face of inconsistent flight line shapes and orientations, but
-#' can result in minor image artefacts in the form of reduced point density. By
-#' default, the spline boundary algorithm is tried first and, only if this
-#' fails, the nibble algorithm is applied. See details below.
+#' This function can be used to correct for biased representation of one or more
+#' point classes in areas where adjacent flight lines overlap. Such biases can
+#' be caused by data post-processing where flight line overlap is removed for
+#' some, but not all, point classes. Why anyone would want to do that is a
+#' complete mystery, but it was commonly seen in airborne LiDAR data for New
+#' South Wales, Australia, prior to 2020 where overlap was removed for all but
+#' class 5 (high vegetation) points resulting in incorrect vegetation cover
+#' estimates. If the overlap is either left for all point classes, or removed
+#' for all classes, then vegetation cover and other ratio-based metrics will be
+#' unbiased.
+#'
+#' This function identifies areas of overlap between adjacent flight lines based
+#' on the specified point classes; determines a mid-line boundary between the
+#' flight lines within each area; and removes points from the data such that the
+#' remaining points from each flight line are strictly on one side of the
+#' boundary. Two algorithms are available: the first ('spline') identifies a
+#' vector boundary in continuous space; the second ('nibble') uses a raster
+#' approach that is more robust in the face of inconsistent flight line shapes
+#' and orientations, but can result in minor image artefacts in the form of
+#' reduced point density. By default, the spline boundary algorithm is tried
+#' first and, only if this fails, the nibble algorithm is applied. See details
+#' below. \strong{Caution:} You should only use this function after checking
+#' that there actually is a bias in point class representation within any
+#' overlap areas using the function \code{check_overlap_bias}, and be
+#' careful to specify the correct classes to consider via the \code{classes}
+#' argument. If no bias exists in the data, running this function for a subset
+#' of point classes will create one!
 #'
 #' The spline boundary algorithm begins by identifying areas of overlap in
 #' raster space, then fitting a spline vector boundary along the middle of each
@@ -40,7 +49,7 @@
 #' overlap. However, this effect can be minimized by working at a finer raster
 #' resolution.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @param algorithms A vector of algorithm names. Valid options are 'spline' and
 #'   'nibble'. This argument can be used to restrict processing to just one
@@ -49,7 +58,7 @@
 #'   flight line orientation is inconsistent.
 #'
 #' @param classes Vector of one or more integer codes for point classes to
-#'   consider.
+#'   consider. Only points belonging to these classes will be removed.
 #'
 #' @param res.spline Raster cell size to use when identifying flight line
 #'   overlap areas using the spline algorithm. The default (10) assumes map
@@ -76,18 +85,18 @@
 #' @return A modified copy of the input LAS object.
 #'
 #' @seealso \code{\link{get_flightline_info}}, \code{\link{check_flightlines}},
-#'   \code{\link{plot_flightlines}}
+#'   \code{\link{get_flightline_polygons}}, \code{\link{plot_flightline_points}}
 #'
 #' @export
 #'
-remove_flightline_overlap <- function(las,
-                                      algorithms = c("spline", "nibble"),
-                                      classes = 5,
-                                      res.spline = 10,
-                                      res.nibble = res.spline / 2,
-                                      buffer = 100,
-                                      min.points = 1000,
-                                      ...) {
+remove_flightline_bias <- function(las,
+                                   algorithms = c("spline", "nibble"),
+                                   classes = 5,
+                                   res.spline = 10,
+                                   res.nibble = res.spline / 2,
+                                   buffer = 100,
+                                   min.points = 1000,
+                                   ...) {
 
   flines <- sort(unique(las@data$flightlineID))
   nlines <- length(flines)
@@ -104,12 +113,12 @@ remove_flightline_overlap <- function(las,
   done <- FALSE
   if ("spline" %in% algorithms) {
     message("Trying spline boundary method...")
-    res <- .do_spline_remove_overlap(las,
-                                     classes = classes,
-                                     res = res.spline,
-                                     buffer = buffer,
-                                     min.points = min.points,
-                                     ...)
+    res <- .do_spline_remove_bias(las,
+                                  classes = classes,
+                                  res = res.spline,
+                                  buffer = buffer,
+                                  min.points = min.points,
+                                  ...)
 
     if (res$success) {
       las <- res$las
@@ -119,10 +128,10 @@ remove_flightline_overlap <- function(las,
 
   if (!done && "nibble" %in% algorithms) {
     message("Trying raster nibble method...")
-    res <- .do_nibble_remove_overlap(las,
-                                     classes = classes,
-                                     res = res.nibble,
-                                     min.points = min.points)
+    res <- .do_nibble_remove_bias(las,
+                                  classes = classes,
+                                  res = res.nibble,
+                                  min.points = min.points)
 
     if (res$success) {
       las <- res$las
@@ -138,12 +147,12 @@ remove_flightline_overlap <- function(las,
 # Apply the spline overlap removal algorithm. Return a list with
 # elements 'success' (logical) and 'las'.
 #
-.do_spline_remove_overlap <- function(las,
-                                      classes,
-                                      res,
-                                      buffer,
-                                      min.points,
-                                      ...) {
+.do_spline_remove_bias <- function(las,
+                                   classes,
+                                   res,
+                                   buffer,
+                                   min.points,
+                                   ...) {
 
   # Get flight line info (bounding rectangles etc) and check for
   # consistent orientation
@@ -221,11 +230,11 @@ remove_flightline_overlap <- function(las,
       # on all point classes whereas here we are (usually) only considering
       # one or a few classes.
       if (length(unique(xyf[,3])) > 1) {
-        remove <- .do_spline_remove_overlap_worker(xyf,
-                                                   res,
-                                                   tile.xlims,
-                                                   tile.ylims,
-                                                   orientation)
+        remove <- .do_spline_remove_bias_worker(xyf,
+                                                res,
+                                                tile.xlims,
+                                                tile.ylims,
+                                                orientation)
 
         # Flag removal of points from the tile. The logical OR `|` is to
         # take into account that a point might have already been flagged
@@ -247,11 +256,15 @@ remove_flightline_overlap <- function(las,
 }
 
 
-# Private helper function for do_spline_remove_overlap
+# Private helper function for do_spline_remove_bias
 #
-.do_spline_remove_overlap_worker <- function(xyf, res, tile.xlims, tile.ylims, orientation) {
+.do_spline_remove_bias_worker <- function(xyf,
+                                          res,
+                                          tile.xlims,
+                                          tile.ylims,
+                                          orientation) {
   lines <- sort(unique(xyf[,3]))
-  if (length(lines) != 2) stop("Bummer: bad data passed to .do_remove_overlap")
+  if (length(lines) != 2) stop("Bummer: bad data passed to .do_remove_bias")
 
   fline1 <- lines[1]
   fline2 <- lines[2]
@@ -328,10 +341,10 @@ remove_flightline_overlap <- function(las,
 # Apply the nibble overlap removal algorithm. Return a list with
 # elements 'success' (logical) and 'las'.
 #
-.do_nibble_remove_overlap <- function(las,
-                                      classes,
-                                      res,
-                                      min.points) {
+.do_nibble_remove_bias <- function(las,
+                                   classes,
+                                   res,
+                                   min.points) {
 
   # Only consider flight lines with sufficient points in the classes being
   # considered. Any with less points are ignored (ie. their points are retained).

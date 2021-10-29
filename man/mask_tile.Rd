@@ -7,7 +7,7 @@
 mask_tile(las, r)
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
+\item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
 
 \item{r}{A \code{RasterLayer} object to use as the mask.}
 }

@@ -8,7 +8,7 @@
 #' @return A named vector of lower case field names where names are standard,
 #'   single character field abbreviations.
 #'
-#' @seealso \code{\link{prepare_tile}}
+#' @seealso \code{prepare_tile}
 #'
 #' @export
 #'
@@ -128,6 +128,55 @@ get_las_bounds <- function(x, type = c("vec", "wkt", "sf"), unzip.dir = NULL) {
 
     if (type == "wkt") sf::st_as_text(p, EWKT = TRUE)
     else p
+  }
+}
+
+
+#' Get the horizontal coordinate reference system
+#'
+#' Recent LiDAR data (e.g. from 2020 in Australia) can have a compound
+#' coordinate reference system defined that consists of a horizontal and a
+#' vertical component. Usually, we just want to use the horizontal component for
+#' derived raster layers. This function extracts the horizontal component and
+#' returns it as a \code{crs} object as used by the \code{sf} package. If the
+#' input object has a simple (i.e. non-compound) coordinate reference syste,
+#' that will be returned unchanged.
+#'
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
+#'
+#' @return An \code{sf} package \code{crs} object.
+#'
+#' @export
+#'
+get_horizontal_crs <- function(las) {
+  if (!inherits(las, "LAS")) stop("Expected a LAS object, e.g. from lidR::readLAS()")
+
+  las_crs <- sf::st_crs(las)
+  wkt <- sf::st_as_text(las_crs)
+
+  if (!grepl("COMPD_CS", wkt)) {
+    # Should just be a horizontal CRS - simply return it
+    las_crs
+  } else {
+    # Extract the horizontal component
+    i <- regexpr("PROJCS\\[", wkt)
+    x <- substring(wkt, i)
+
+    xc <- strsplit(x, "")[[1]]
+    level <- 1
+    k <- match("[", xc)
+    while (level > 0) {
+      k <- k + 1
+      if (xc[k] == '[') {
+        level <- level + 1
+      } else if (xc[k] == ']') {
+        level <- level - 1
+      }
+    }
+
+    wkt <- substring(x, 1, k)
+
+    sf::st_crs(wkt)
   }
 }
 
@@ -450,7 +499,7 @@ prepare_tile <- function(path,
 #' done using \code{sf} package methods. If the point cloud is very large this
 #' may take a while.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @param epsg.new Integer EPSG code for the projection into which the point
 #'   cloud will be transformed.
@@ -497,7 +546,7 @@ reproject_tile <- function(las, epsg.new, epsg.old = lidR::epsg(las)) {
 #' @note This function \strong{does not check} that the coordinate reference
 #'   systems of the LAS and raster objects are the same.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @param r A \code{RasterLayer} object to use as the mask.
 #'
@@ -524,11 +573,11 @@ mask_tile <- function(las, r) {
 #'
 #' This function takes an input LAS tile and returns a copy from which any
 #' flight lines with less than a specified minimum number of points have been
-#' removed. It is used by \code{\link{prepare_tile}} but can also be called
+#' removed. It is used by \code{prepare_tile} but can also be called
 #' directly. If points are dropped, the header of the returned LAS object is
 #' updated.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @param min.points The minimum number of points in a flight line for it to be
 #'   retained. The default value (1e3) is intended to exclude flight lines that
@@ -571,7 +620,7 @@ filter_flightlines <- function(las, min.points = 1e3) {
 #' average point density \code{p}, an estimate of the average distance between
 #' neighbouring points, disregarding edge effects, is \code{0.5 / sqrt(p)}.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @return The average point density as a single value.
 #'
@@ -589,280 +638,6 @@ get_point_density <- function(las) {
 }
 
 
-#' Check that the orientations of all flightlines match
-#'
-#' This is a convenience function that calls \code{get_flightline_info}
-#' with default arguments and checks that all flight lines have the same
-#' orientation, either 'EW' or 'NS'.
-#'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
-#'
-#' @param ... Additional arguments to pass to \code{get_flightline_info}
-#'   including \code{angular.tol}.
-#'
-#' @return \code{TRUE} if flight lines are consistent; \code{FALSE} otherwise.
-#'
-#' @seealso \code{\link{get_flightline_info}}
-#'
-#' @export
-#'
-check_flightlines <- function(las, ...) {
-  dat <- get_flightline_info(las, ...)
-  o <- na.omit(dat$orientation)
-
-  if (length(o) == 0) FALSE
-  else (o[1] %in% c("EW", "NS")) && all(o == o[1])
-}
-
-
-#' Get summary information for flight line extents
-#'
-#' This function determines the minimum bounding rectangle for points in each
-#' flight line and, based on this, the orientation of the flight line: one of
-#' 'NS' (north - south), 'EW' (east - west), or XX (indeterminate).
-#'
-#' To determine orientation, the function first checks the angle between the
-#' longest side of the rectangle and the horizontal (X coordinate axis). If the
-#' longest side is close to horizontal (where 'close' means plus or minus a
-#' tolerance value specified with the \code{angular.tol} argument which has a
-#' default value of 30 degrees) the orientation is provisionally labelled as
-#' 'EW', whereas if the longest side is close to vertical (Y coordinate axis) it
-#' is provisionally labelled as 'NS'. Flight lines that are not sufficiently
-#' close to horizontal or vertical are labelled as 'XX' and not considered
-#' further.
-#'
-#' For flight lines labelled 'NS' or 'EW', if the ratio of the longest side of
-#' the bounding rectangle to the shortest side is greater than that specified by
-#' the \code{ratio.side} argument (default 1.2), the initial orientation is
-#' taken as confirmed. For flight lines with more equilateral bounding
-#' rectangles, the point GPS times are checked along the X and Y dimensions to
-#' determine the final orientation.
-#'
-#'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
-#'
-#' @param angular.tol The angular tolerance in degrees to apply when determining
-#'   flight line orientation. It refers to the angle between the longest side of
-#'   bounding rectangle and the horizontal (X coordinate axis). The default
-#'   value is 25 degrees and the valid range of values is
-#'   \code{0 < angular.tol <= 30}.
-#'
-#' @param min.ratio The minimum ratio (default = 1.2) of the longest to the
-#'   shortest side of a flight line bounding rectangle for orientation to be
-#'   either 'NS' or 'EW'. Must be a value greater than 1.1. For flight lines
-#'   with more equilateral bounding rectangles, orientation is determined by
-#'   examining point GPS times (see Details).
-#'
-#' @param min.points The minimum number of points in a flight line for it to be
-#'   included. Set to zero to include all flightlines. The default value (1000)
-#'   is intended to exclude flight lines that only appear at the margins of the
-#'   tile. Normally, such sparse flight lines will be removed when importing the
-#'   tile. In the case that all flight lines are included, bounding rectangles
-#'   and orientations will not be defined for those with very few points.
-#'
-#' @return A spatial data frame (class \code{sf}) with columns: flightlineID,
-#'   xlen, ylen, orientation and geometry (minimum bounding rectangle of flight
-#'   line).
-#'
-#' @seealso \code{\link{check_flightlines}}
-#'
-#' @export
-#'
-get_flightline_info <- function(las,
-                                angular.tol = 25,
-                                min.ratio = 1.2,
-                                min.points = 1000) {
-
-  stopifnot(angular.tol > 0.0, angular.tol <= 30)
-  stopifnot(min.ratio > 1.1)
-
-  if (is_empty_tile(las)) {
-    warning("Point cloud is empty in tile")
-
-    out <- sf::st_sf(
-      flightlineID = NA_integer_,
-      angle = NA_real_,
-      ratio.sidelen = NA_real_,
-      orientation = "XX",
-      npoints = 0,
-      ppoints = 0,
-      geometry = sf::st_sfc( sf::st_polygon() )
-    )
-
-    return(out)
-  }
-
-  ids <- sort(unique(las@data$flightlineID))
-
-  # Count points in each flight line.
-  # The c() call is to convert the table object to a
-  # simple vector.
-  counts.all <- c( table(las@data$flightlineID) )
-  total.count <- sum(counts.all)
-
-  # Check for flightlines with an insufficient number of points
-  n <- sum(counts.all < min.points)
-  if (n == 0) {
-    counts <- counts.all
-    ids.fewpoints <- integer(0)
-
-  } else {
-    ids.fewpoints <- ids[c(counts.all) < min.points]
-    ids <- setdiff(ids, ids.fewpoints)
-
-    if (length(ids) == 0) {
-      warning("No flight lines with sufficient points")
-      return(NULL)
-    }
-
-    counts <- counts.all[ as.character(ids) ]
-  }
-
-  counts <- data.frame(
-    flightlineID = ids,
-    npoints = counts
-  )
-
-
-  rects <- lapply(ids, function(id) {
-    r <- get_bounding_rectangle(las, classes = "all", flightlines = id)
-    r$flightlineID <- id
-    r
-  })
-
-  geoms <- lapply(rects, function(r) {
-    v <- as.matrix(r[, c("X", "Y")])
-    colnames(v) <- c("x", "y")
-    sf::st_polygon(list(v))
-  })
-
-  sfdat <- sf::st_sf(flightlineID = ids, geometry = geoms)
-
-
-  rects <- dplyr::bind_rows(rects) %>%
-    dplyr::left_join(counts, by = "flightlineID") %>%
-
-    dplyr::group_by(flightlineID) %>%
-
-    dplyr::do({
-      # Find side lengths and angle of longest side
-      dxs <- diff(.$X[1:3])
-      dys <- diff(.$Y[1:3])
-
-      side12.len <- sqrt(dxs[1]^2 + dys[1]^2)
-      side23.len <- sqrt(dxs[2]^2 + dys[2]^2)
-
-      side.angle <- ifelse(
-        side12.len > side23.len, atan2(dys[1], dxs[1]), atan2(dys[2], dxs[2])
-      )
-
-      # convert to degrees and express as angle to horizontal
-      side.angle <- 180 * side.angle / pi
-      if (side.angle < 0) side.angle <- side.angle + 180
-      if (side.angle > 90) side.angle <- 180 - side.angle
-
-      # Initially classify orientation
-      o <- base::cut(
-        side.angle,
-        breaks = c(-1, angular.tol, 90 - angular.tol, 91),
-        labels = c("EW", "XX", "NS"))
-
-      # Convert to character to avoid factor level problems later
-      orientation.initial <- as.character(o)
-
-      # Side length ratio
-      lens <- c(side12.len, side23.len)
-      ratio.sidelen <- max(lens) / min(lens)
-
-      data.frame(angle = side.angle, orientation.initial, ratio.sidelen,
-                 stringsAsFactors = FALSE)
-    }) %>%
-
-    dplyr::ungroup()
-
-
-  # Helper function to determine flight line direction in
-  # the dplyr pipeline below. Also makes it easier to run
-  # in a debugging session.
-  fn_get_timetrend <- function(dat) {
-    nrecs <- nrow(dat)
-
-    if (nrecs > 1000) ii <- sample.int(nrecs, 1000)
-    else ii <- 1:nrecs
-
-    dat <- dat[ii, ]
-
-    model <- lm(dtime ~ X + Y, data = dat)
-    pdat <- expand.grid(X = range(dat$X), Y = range(dat$Y)) %>% dplyr::arrange(X, Y)
-    p <- predict(model, newdata = pdat)
-    dtX <- abs(p[1] - p[3])
-    dtY <- abs(p[1] - p[2])
-
-    otime <- ifelse(dtY > 2 * dtX, "NS", ifelse(dtX > 2 * dtY, "EW", "XX"))
-
-    data.frame(dtX, dtY, orientation.time = otime,
-               stringsAsFactors = FALSE)
-  }
-
-
-  # GPS point time trend along X and Y dimensions for each flight line
-  # and orientation inferred from this
-  timetrend <- las@data %>%
-    dplyr::filter(flightlineID %in% ids) %>%
-
-    dplyr::select(X, Y, flightlineID, gpstime) %>%
-
-    dplyr::group_by(flightlineID) %>%
-
-    dplyr::mutate(dtime = gpstime - min(gpstime)) %>%
-
-    dplyr::do(fn_get_timetrend(.))
-
-
-  rects <- dplyr::left_join(rects, timetrend,
-                            by = "flightlineID") %>%
-
-    dplyr::mutate(orientation = dplyr::case_when(
-      orientation.initial == "XX" ~ orientation.initial,
-      ratio.sidelen > min.ratio ~ orientation.initial,
-      TRUE ~ orientation.time
-    )) %>%
-
-    dplyr::select(flightlineID, angle, ratio.sidelen, orientation)
-
-
-  sfdat <- sfdat %>%
-    dplyr::left_join(rects, by = "flightlineID") %>%
-    dplyr::left_join(counts, by = "flightlineID") %>%
-    dplyr::mutate(ppoints = npoints / total.count)
-
-  if (length(ids.fewpoints) > 0) {
-    npoints.few <- counts.all[ as.character(ids.fewpoints) ]
-    ppoints.few <- npoints.few / total.count
-
-    suppressWarnings(
-      sfdat.few <- sf::st_sf(
-        flightlineID = ids.fewpoints,
-        angle = NA_real_,
-        ratio.sidelen = NA_real_,
-        orientation = NA_character_,
-        npoints = npoints.few,
-        ppoints = ppoints.few,
-        geometry = sf::st_sfc( sf::st_polygon() ),
-
-        stringsAsFactors = FALSE)
-    )
-
-    # Note: using dplyr::rbind does not work here for some reason
-    # (with dplyr 0.8.0.1)
-    sfdat <- rbind(sfdat, sfdat.few) %>%
-      dplyr::arrange(flightlineID)
-  }
-
-  sfdat
-}
-
-
 #' Find the minimum bounding rectangle that encloses specified points.
 #'
 #' When called with a single argument for the LAS tile, this function returns
@@ -871,7 +646,7 @@ get_flightline_info <- function(las,
 #' to consider. If another kind of subset is required, the helper function
 #' \code{link{.min_rectangle}} can be used directly.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @param classes Point classes to include: either a vector of integer class
 #'   numbers or the string \code{'all'} (default).
@@ -992,129 +767,6 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 }
 
 
-
-#' Plot point locations and flight lines
-#'
-#' Displays a random sample of points from a LAS object, coloured by flight line
-#' ID and facetted by point class. This is useful, for example, when diagnosing
-#' problems with overlapping flightlines or uneven point density.
-#'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
-#'
-#' @param classes An integer vector specifying the point classes to display. May
-#'   include 2 (ground), 3 (low veg), 4 (mid veg), 5 (high veg), 35 (all veg -
-#'   the three vegetation classes combined), 6 (buildings) and 9 (water). The
-#'   default is to display ground (2) and all vegetation combined (35).
-#'
-#' @param npts Number of points to sample from the LAS data for drawing.
-#'   Sampling is done proportionally across combinations of point classes and
-#'   flight lines, and the resulting number of rows in the \code{data} element
-#'   of the returned ggplot object can vary slightly. If displaying many point
-#'   classes, increasing this value from the default (5000) and decreasing the
-#'   point size will produce nicer plots.
-#'
-#' @param shape Point shape, specified as an integer code as for gpplot and
-#'   R base plot.
-#'
-#' @param size Point size.
-#'
-#' @return A ggplot object.
-#'
-#' @importFrom ggplot2 aes as_labeller coord_equal element_blank facet_wrap ggplot geom_point theme
-#'
-#' @examples
-#' \dontrun{
-#' # Default plot of points for ground (class 2) and combined
-#' # vegetation (classes 3-5).
-#' plot_flightlines(las)
-#'
-#' # Display the vegetation classes both separately and combined
-#' plot_flightlines(las, classes = c(3:5, 35))
-#' }
-#'
-#' @export
-#'
-plot_flightlines <- function(las,
-                             classes = c(2, 35),
-                             npts = 5000,
-                             shape = 16,
-                             size = 1) {
-
-  if (!("flightlineID" %in% colnames(las@data))) {
-    stop("No flightlineID field found")
-  }
-
-  prop <- min(1.0, npts / nrow(las@data))
-
-  ClassLookup <- data.frame(
-    code = c(2, 3, 4, 5, 35, 6, 9),
-    label = c('ground (2)',
-              'low veg (3)', 'mid veg (4)', 'high veg (5)', 'all veg (3-5)',
-              'building (6)', 'water (9)'),
-    stringsAsFactors = FALSE
-  )
-
-  if (length(classes) == 0) stop("One or more point classes should be specified")
-
-  classes <- unique(classes)
-  ok <- classes %in% ClassLookup$code
-  if (!all(ok)) {
-    stop("Unrecognized class(es): ", classes[!ok], "\n",
-         "Valid options: ", paste(ClassLookup$code, collapse = ", "))
-  }
-
-  # Get data for required classes, allowing for the display of veg
-  # classes separately and/or combined
-  dat <- lapply(classes, function(cl) {
-    if (cl == 35) {
-      cldat <- las@data %>%
-        as.data.frame() %>%
-        dplyr::filter(Classification %in% 3:5) %>%
-        dplyr::mutate(Classification = 35)
-    } else {
-      cldat <- las@data %>%
-        as.data.frame() %>%
-        dplyr::filter(Classification == cl)
-    }
-
-    cldat
-  })
-
-  dat <- dplyr::bind_rows(dat)
-
-  dat <- dat %>%
-    dplyr::group_by(flightlineID, Classification) %>%
-
-    dplyr::do({
-      N <- nrow(.)
-      ns <- max(1, prop * N)
-      ii <- sample.int(N, ns)
-      .[ii, ]
-    }) %>%
-
-    dplyr::ungroup() %>%
-
-    dplyr::mutate(flightline = factor(flightlineID))
-
-
-  gg <- ggplot(data = dat, aes(x = X, y = Y)) +
-    geom_point(aes(colour = flightline),
-               shape = shape, size = size) +
-
-    coord_equal() +
-
-    theme(axis.ticks = element_blank(),
-          axis.text = element_blank())
-
-  ii <- ClassLookup$code %in% classes
-  labels <- ClassLookup$label[ii]
-  names(labels) <- ClassLookup$code[ii]
-  gg <- gg + facet_wrap(~ Classification, labeller = as_labeller(labels))
-
-  gg
-}
-
-
 #' Get scan times for a LAS tile
 #'
 #' The data table for an imported LAS tile includes a \code{gpstime} column
@@ -1124,7 +776,7 @@ plot_flightlines <- function(las,
 #' date-times and finds the start and end values, either for the tile as a whole
 #' or for individual flightlines.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @param by One of 'all' (default) or 'flightline'. Case-insensitive and may
 #'   be abbreviated.
@@ -1157,14 +809,14 @@ get_scan_times <- function(las, by) {
 
 #' Check whether a LAS tile object has been prepared
 #'
-#' When a LAS tile is imported using the \code{\link{prepare_tile}} function,
+#' When a LAS tile is imported using the \code{prepare_tile} function,
 #' point heights are normalized relative to ground elevation and flight lines
 #' are identified. This results in two extra columns (Zref and flightlineID)
 #' being added to the LAS data table. This function checks that these two
 #' columns are present. It also checks that the tile has point data, returning
 #' FALSE if the point cloud is empty.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @return TRUE if the tile has been prepared or FALSE otherwise.
 #'
@@ -1189,7 +841,7 @@ is_prepared_tile <- function(las) {
 #' Checks whether a point cloud is empty, i.e. there are zero rows in the LAS
 #' object's data table.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @return TRUE if the point cloud is empty.
 #'
@@ -1208,7 +860,7 @@ is_empty_tile <- function(las) {
 #' point class. A layer can also be created for all three vegetation classes
 #' combined. The resulting layers are returned as a \code{RasterStack} object.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @param res Raster cell size. The default value is 10 which assumes that
 #'   the LAS data is in a projected coordinate system with metres as units.
@@ -1284,7 +936,7 @@ get_summary_counts <- function(las, res = 10, classes = NULL) {
 
 #' Get vegetation point counts for defined strata.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @param strata A data frame of strata definitions with three columns:
 #'   name, lower, upper.
@@ -1361,7 +1013,7 @@ get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5,9)) {
 
 #' Extract building points from a LAS tile
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @return An \code{sf} spatial data frame suitable for map display and export
 #'   to a shapefile.
@@ -1444,7 +1096,7 @@ get_stratum_cover <- function(rcounts) {
 #' an approximate vegetation height layer by setting the \code{classes}
 #' argument to \code{c(3:5)}.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @param res Raster cell size. The default value is 10 which assumes that
 #'   the LAS data is in a projected coordinate system with metres as units.
@@ -1585,7 +1237,7 @@ check_strata <- function(strata) {
 #' max X, Y and Z, and the number of points. This function additionally updates
 #' the X and Y offsets.
 #'
-#' @param las A LAS object, e.g. imported using \code{\link{prepare_tile}}.
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @return A LAS object with header information updated, if necessary, to
 #'   accord with its current data.

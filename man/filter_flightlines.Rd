@@ -7,7 +7,7 @@
 filter_flightlines(las, min.points = 1000)
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
+\item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
 
 \item{min.points}{The minimum number of points in a flight line for it to be
 retained. The default value (1e3) is intended to exclude flight lines that
@@ -20,7 +20,7 @@ A (possibly) modified copy of the input tile with any sparse flight
 \description{
 This function takes an input LAS tile and returns a copy from which any
 flight lines with less than a specified minimum number of points have been
-removed. It is used by \code{\link{prepare_tile}} but can also be called
+removed. It is used by \code{prepare_tile} but can also be called
 directly. If points are dropped, the header of the returned LAS object is
 updated.
 }

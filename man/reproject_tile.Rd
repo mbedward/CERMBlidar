@@ -7,7 +7,7 @@
 reproject_tile(las, epsg.new, epsg.old = lidR::epsg(las))
 }
 \arguments{
-\item{las}{A LAS object, e.g. imported using \code{\link{prepare_tile}}.}
+\item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
 
 \item{epsg.new}{Integer EPSG code for the projection into which the point
 cloud will be transformed.}

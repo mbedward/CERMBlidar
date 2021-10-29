@@ -17,5 +17,5 @@ character field abbreviations (as understood by \code{prepare_tile} and
 must be included when importing a tile with \code{prepare_tile}.
 }
 \seealso{
-\code{\link{prepare_tile}}
+\code{prepare_tile}
 }
