@@ -171,19 +171,19 @@ get_flightline_polygons <- function(las,
   }
 
   lineIDs <- sort(unique(las@data$flightlineID))
-  dt <- dtplyr::lazy_dt(las@data)
 
   if (group_classes) {
     lookup <- expand.grid(id = lineIDs, cl = sort(classes))
 
     dats <- lapply(1:nrow(lookup), function(irow) {
+      #browser()
       id <- lookup$id[irow]
       cl <- lookup$cl[irow]
 
-      xy <- dt %>%
+      xy <- las@data[, c("X", "Y", "flightlineID", "Classification")] %>%
+        as.data.frame() %>%
         dplyr::filter(flightlineID == id & Classification == cl) %>%
         dplyr::select(X, Y) %>%
-        dplyr::collect() %>%
         as.matrix()
 
       if (nrow(xy) > 0) {
@@ -201,10 +201,11 @@ get_flightline_polygons <- function(las,
 
   } else { # not grouping classes
     dats <- lapply(lineIDs, function(id) {
-      xy <- dt %>%
+      #browser()
+      xy <- las@data[, c("X", "Y", "flightlineID")] %>%
+        as.data.frame() %>%
         dplyr::filter(flightlineID == id) %>%
         dplyr::select(X, Y) %>%
-        dplyr::collect() %>%
         as.matrix()
 
       if (nrow(xy) > 0) {
