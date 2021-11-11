@@ -26,9 +26,9 @@ mandatory_input_fields <- function() {
 #' This function reads the bounding coordinates and projection information from
 #' the header of either a LAS file on disk (either compressed or uncompressed)
 #' or LAS object imported via \code{prepare_tile}. The bounds are returned as
-#' either a named vector, an EWKT (Extended Well Known Text) string specifier,
-#' or a simple feature geometry list object (class \code{sf::st_sfc}) containing
-#' a single polygon.
+#' either: a named vector, an EWKT (Extended Well Known Text) string specifier,
+#' an \code{sf} package bounding box, an \code{sf} package geometry list object
+#' or a \code{terra} package \code{SpatExtent} object.
 #'
 #' @param x Either a character string specifying the path to a file, or a
 #'   \code{LAS} object (e.g. imported using function \code{prepare_tile}).
@@ -38,7 +38,10 @@ mandatory_input_fields <- function() {
 #'
 #' @param type Either \code{'vec'} (default) to return a named vector of min and
 #'   max coordinates and EPSG code; \code{'wkt'} to return an EWKT text string,
-#'   or \code{'sf'} to return a geometry list containing the bounding polygon.
+#'   \code{'sfc'} to return an \code{sf} package geometry list with a polygon,
+#'   \code{'bbox'} to return an \code{sf} package bounding box object, or
+#'   \code{'terra'} to return a \code{'terra'} package \code{'SpatExtent'}
+#'   object.
 #'
 #' @param unzip.dir The directory in which to uncompress a compressed LAS file
 #'   (identified by a '.zip' extension). If \code{NULL} (default) a temporary
@@ -54,7 +57,7 @@ mandatory_input_fields <- function() {
 #' # Read bounds from a zipped LAS file and return as a vector
 #' bounds <- get_las_bounds("c:/somewhere/myfile.zip")
 #'
-#' # Get bounds as an 'sf' polygon geometry list
+#' # Get bounds as an 'sf' bounding box
 #' bounds <- get_las_bounds("c:/somewhere/myfile.zip", type = "sf")
 #' print(bounds)
 #' plot(bounds)
@@ -66,11 +69,16 @@ mandatory_input_fields <- function() {
 #'
 #' @export
 #'
-get_las_bounds <- function(x, type = c("vec", "wkt", "sf"), unzip.dir = NULL) {
+get_las_bounds <- function(x, type = c("vec", "wkt", "sfc", "bbox", "terra"), unzip.dir = NULL) {
   type <- match.arg(type)
 
   if (inherits(x, "LAS")) {
-    hdr <- as.list(x@header)
+    lims <-  c(xmin = min(las@data$X),
+               xmax = max(las@data$X),
+               ymin = min(las@data$Y),
+               ymax = max(las@data$Y))
+
+    xcrs <- sf::st_crs(x)
 
   } else if (is.character(x)) {
     if (length(x) > 1) {
@@ -101,33 +109,51 @@ get_las_bounds <- function(x, type = c("vec", "wkt", "sf"), unzip.dir = NULL) {
       las.file <- x
     }
 
+    # Read header as list object
     hdr <- rlas::read.lasheader(las.file)
     if (length(unz.files) > 0) unlink(unz.files)
+
+    lims <- c(xmin = hdr[["Min X"]],
+              xmax = hdr[["Max X"]],
+              ymin = hdr[["Min Y"]],
+              ymax = hdr[["Max Y"]])
+
+    # Convert header to LASheader object to get coord ref system
+    hdr <- lidR::LASheader(hdr)
+
+    suppressMessages(
+      suppressWarnings({
+        epsg <- lidR::epsg(hdr)
+
+        if (epsg > 0) {
+          xcrs <- sf::st_crs(epsg)
+        } else {
+          xcrs <- sf::st_crs(lidR::wkt(hdr))
+        }
+      })
+    )
   }
 
-  lims <- c(minx = hdr[["Min X"]],
-            maxx = hdr[["Max X"]],
-            miny = hdr[["Min Y"]],
-            maxy = hdr[["Max Y"]],
-            epsg = lidR::epsg( lidR::LASheader(hdr) ) )
 
   if (type == "vec") {
     lims
 
-  } else {
-    v <- matrix(
-      c(lims['minx'], lims['miny'],
-        lims['minx'], lims['maxy'],
-        lims['maxx'], lims['maxy'],
-        lims['maxx'], lims['miny'],
-        lims['minx'], lims['miny']),
-      ncol = 2, byrow = TRUE)
+  } else if (type == "terra") {
+    terra::ext(lims)
 
-    p <- sf::st_polygon(list(v))
-    p <- sf::st_sfc(p, crs = lims['epsg'])
+  }  else {
+    bb <- sf::st_bbox(lims, crs = xcrs)
 
-    if (type == "wkt") sf::st_as_text(p, EWKT = TRUE)
-    else p
+    if (type == "bbox") {
+      bb
+    } else {
+      glist <- sf::st_as_sfc(bb)
+      if (type == "sfc") {
+        glist
+      } else {
+        sf::st_as_text(glist, EWKT = TRUE)
+      }
+    }
   }
 }
 
@@ -211,9 +237,10 @@ get_horizontal_crs <- function(las) {
 #'       normalized using the specified algorithm. Must be one of:
 #'       \code{'tin', 'knnidw', 'kriging'} which correspond to the algorithm
 #'       functions provided by the \code{lidR} package.}
-#'     \item{A raster layer}{If a raster layer is provided, the cell values
-#'       will be used as ground elevation to normalize point heights. The layer
-#'       should have the same or greater extent as the LAS file.}
+#'     \item{A raster layer}{If a raster layer (a terra package \code{SpatRast}
+#'       object or a raster package \code{RasterLayer} object) is provided, the
+#'       cell values will be used as ground elevation to normalize point heights.
+#'       The layer should have the same or greater extent as the LAS file.}
 #'     \item{A raster filename}{Any character string that does not match one of
 #'       the supported algorithm names will be treated as the path to a raster
 #'       file. Supported formats are GeoTIFF ('.tif') and ESRI ASCII ('.asc').
@@ -438,16 +465,20 @@ prepare_tile <- function(path,
           dem.file <- normalize.heights
         }
 
-        r <- raster::raster(dem.file)
+        r <- terra::rast(dem.file)
         las <- .normalize_heights_dem(las, rdem = r)
       }
 
-    } else if (inherits(normalize.heights, "RasterLayer")) {
+    } else if (.is_raster_object(normalize.heights)) {
+      las <- .normalize_heights_dem(las, rdem = normalize.heights)
+
+    } else if (.is_terra_object(normalize.heights)) {
       las <- .normalize_heights_dem(las, rdem = normalize.heights)
 
     } else {
       stop("Argument normalize.heights should be a logical value, ",
-           "a character string or a RasterLayer")
+           "a character string, a SpatRast (terra package) or a ",
+           "RasterLayer (raster package)")
     }
 
     # discard any points more than the threshold value below ground level
@@ -488,7 +519,7 @@ prepare_tile <- function(path,
     stop("No points lie within mask raster data cells")
   }
 
-  lidR::normalize_height(las, algorithm = rdem)
+  lidR::normalize_height(las, algorithm = .as_raster_rast(rdem))
 }
 
 
@@ -556,8 +587,9 @@ reproject_tile <- function(las, epsg.new, epsg.old = lidR::epsg(las)) {
 #' @export
 #'
 mask_tile <- function(las, r) {
-  xy <- cbind(X = las@data[["X"]], Y = las@data[["Y"]])
-  keep <- !is.na(raster::extract(r, xy))
+  xy <- cbind(X = las@data$X, Y = las@data$Y)
+  r <- .as_terra_rast(r)
+  keep <- !is.na(terra::extract(r, xy))
 
   if (!any(keep)) {
     warning("No points fall within data cells of the raster mask")
@@ -566,6 +598,38 @@ mask_tile <- function(las, r) {
     las@data <- las@data[keep, , drop = FALSE]
     update_tile_header(las)
   }
+}
+
+
+.as_terra_rast <- function(x) {
+  if (.is_raster_object(x)) {
+    x <- terra::rast(x)
+  }
+
+  x
+}
+
+
+.as_raster_rast <- function(x) {
+  if (.is_terra_object(x)) {
+    if (terra::nlyr(x) > 1) {
+      x <- raster::stack(x)
+    } else {
+      x <- raster::raster(x)
+    }
+  }
+
+  x
+}
+
+
+.is_raster_object <- function(x) {
+  grepl("^Raster(Layer|Stack|Brick)", class(x))
+}
+
+
+.is_terra_object <- function(x) {
+  inherits(x, "SpatRaster")
 }
 
 
@@ -855,10 +919,11 @@ is_empty_tile <- function(las) {
 
 #' Create raster layers summarizing point counts for a LAS tile
 #'
-#' Given a LAS tile and a raster cell size, this function creates raster layers
-#' where cell values in each layer are point counts over all heights for a given
-#' point class. A layer can also be created for all three vegetation classes
-#' combined. The resulting layers are returned as a \code{RasterStack} object.
+#' Given a LAS tile and a raster cell size, this function creates a raster
+#' object with a band for each point class being considered. Cell values in each
+#' band give the point count over all heights for the given point class. A layer
+#' can also be created for all three vegetation classes combined. The resulting
+#' layers are returned as a \code{terra::SpatRast} object.
 #'
 #' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
@@ -870,7 +935,8 @@ is_empty_tile <- function(las) {
 #'   - the three vegetation classes combined), 6 (buildings) and 9 (water). The
 #'   default is to summarize all of the above.
 #'
-#' @return A \code{RasterStack} with a layer for each requested attribute.
+#' @return A \code{terra::SpatRast} object with a layer for each requested
+#'   attribute.
 #'
 #' @examples
 #' \dontrun{
@@ -909,7 +975,8 @@ get_summary_counts <- function(las, res = 10, classes = NULL) {
     stop("Argument classes should be NULL or a vector of one or more integers")
   }
 
-  rbase <- raster::raster(lidR::extent(las), res = res)
+  ext <- get_las_bounds(las, type = "terra")
+  rbase <- terra::rast(ext, resolution = res)
 
   rr <- lapply(classes, function(cl) {
     if (cl == 35) cl <- 3:5
@@ -917,24 +984,32 @@ get_summary_counts <- function(las, res = 10, classes = NULL) {
 
     if (!any(ii)) {
       warning("No points in class ", cl)
-      r <- rbase
-      raster::values(r) <- 0
+      r <- terra::init(rbase, 0)
     } else {
-      dat <- as.matrix(las@data[ii, c("X", "Y"), drop=FALSE])
-      r <- raster::rasterize(dat, rbase, fun = "count")
+      p <- terra::vect( as.matrix(las@data[ii, c("X", "Y"), drop=FALSE]) )
+      r <- terra::rasterize(p, rbase, fun = length, background = 0)
     }
 
     r
   })
 
+  res <- terra::rast(rr)
   ii <- match(classes, ClassLookup$code)
-  names(rr) <- ClassLookup$label[ii]
+  names(res) <- ClassLookup$label[ii]
 
-  raster::stack(rr)
+  terra::crs(res) <- sf::st_as_text(sf::st_crs(las))
+
+  res
 }
 
 
 #' Get vegetation point counts for defined strata.
+#'
+#' Give a LAS tile and a set of height ranges, this function creates a
+#' multi-band raster where the cells in each band represent voxels for a given
+#' stratum, and each cell value is the number of points within the voxel. This
+#' can be used as the first step in the calculation of vegetation cover
+#' estimates.
 #'
 #' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
@@ -946,8 +1021,9 @@ get_summary_counts <- function(las, res = 10, classes = NULL) {
 #' @param classes Integer classification codes for points to include.
 #'   Default is 2 (ground) and 3:5 (vegetation) and 9 (water).
 #'
-#' @return A \code{RasterStack} where each layer corresponds to a stratum
-#'   (or ground) and cell values are point counts.
+#' @return A \code{terra::SpatRast} object where each band corresponds to a
+#'   stratum (including the ground layer) and cell values are voxel point
+#'   counts.
 #'
 #' @export
 #'
@@ -974,13 +1050,9 @@ get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5,9)) {
   xy <- cbind(X = lidR:::f_grid(las@data$X, res, 0),
               Y = lidR:::f_grid(las@data$Y, res, 0) )
 
-  r <- raster(
-    xmn = min(xy[,1]) - res/2,
-    xmx = max(xy[,1]) + res/2,
-    ymn = min(xy[,2]) - res/2,
-    ymx = max(xy[,2]) + res/2,
-    res = res
-  )
+
+  ext <- get_las_bounds(las, type = "terra")
+  rbase <- terra::rast(ext, resolution = res)
 
   # points in desired classes
   include <- las@data$Classification %in% classes
@@ -1000,12 +1072,18 @@ get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5,9)) {
     1:nrow(strata),
     function(i) {
       dat <- xy[ xy[,3] == i, , drop=FALSE]
-      if (nrow(dat) == 0) setValues(r, 0)
-      else rasterize(dat[, 1:2, drop = FALSE], r, fun = 'count', background = 0)
+      if (nrow(dat) == 0) {
+        terra::init(rbase, 0)
+      } else {
+        p <- terra::vect( dat[, 1:2, drop = FALSE] )
+        terra::rasterize(p, rbase, fun = length, background = 0)
+      }
     })
 
-  rcounts <- stack(rcounts)
+
+  rcounts <- terra::rast(rcounts)
   names(rcounts) <- strata$name
+  terra::crs(rcounts) <- sf::st_as_text(sf::st_crs(las))
 
   rcounts
 }
@@ -1048,24 +1126,31 @@ get_building_points <- function(las) {
 
 #' Calculate strata cover estimates
 #'
-#' This function takes a \code{RasterStack} of point count data for the ground
+#' This function takes a raster of point count data for the ground
 #' layer and vegetation strata and calculates corresponding layer cover
 #' estimates. It assumes that the first layer is for ground points and
 #' subsequent layers are for vegetation strata in increasing height order.
 #'
-#' @param rcounts A \code{RasterStack} or \code{RasterBrick} with a layer for
-#'   each vegetation stratum plus a layer for ground. Cell values are point
-#'   counts.
+#' @param rcounts A raster object with a band of point count data for each
+#'   vegetation stratum plus a band for the ground layer. Normally, this will be
+#'   a \code{terra} package \code{SpatRast} object generated by function
+#'   \code{get_stratum_counts()}, but it may also be a \code{RasterStack} or
+#'   \code{RasterBrick} (\code{raster} package) object.
 #'
-#' @return A \code{RasterStack}
+#' @return A \code{SpatRast} object with a band for each vegetation stratum.
 #'
 #' @export
 #'
 get_stratum_cover <- function(rcounts) {
-  if (!inherits(rcounts, c("RasterBrick", "RasterStack")))
-    stop("Input should be a RasterStack or RasterBrick object")
+  if (inherits(rcounts, "SpatRaster")) {
+    # nothing to do
+  } else if (inherits(rcounts, c("RasterBrick", "RasterStack"))) {
+    rcounts <- terra::rast(rcounts)
+  } else {
+    stop("Argument rcounts should be a multi-band raster object")
+  }
 
-  N <- nlayers(rcounts)
+  N <- terra::nlyr(rcounts)
   if (N < 2) stop("Expected at least two layers: ground plus one or more strata")
 
   layernames <- names(rcounts)
@@ -1076,17 +1161,19 @@ get_stratum_cover <- function(rcounts) {
     if (!ok) stop("First layer name must be or contain 'ground' (case-insensitive)")
   }
 
-  rsum <- rcounts[[1]]
+  rsum <- terra::subset(rcounts, 1)
+
   rcover <- lapply(2:N, function(i) {
-    rsum <<- rsum + rcounts[[i]]
-    r <- rcounts[[i]] / rsum
+    rsum <<- rsum + terra::subset(rcounts, i)
+    r <- subset(rcounts, i) / rsum
     r[is.nan(r)] <- 0
     r
   })
 
+  rcover <- terra::rast(rcover)
   names(rcover) <- names(rcounts)[-1]
 
-  stack(rcover)
+  rcover
 }
 
 
@@ -1102,15 +1189,16 @@ get_stratum_cover <- function(rcounts) {
 #'   the LAS data is in a projected coordinate system with metres as units.
 #'
 #' @param classes Point classes to include when calculating maximum height
-#'   for each cell. Default is 3:5 (low, mid and high vegetation).
+#'   for each cell. Default is c(2, 3:5, 9) for ground, vegetation and
+#'   water point classes.
 #'
-#' @param nodata Integer value for cells with no points. Default is \code{NA}.
+#' @param background Integer value for cells with no points. Default is \code{NA}.
 #'
 #' @return A \code{RasterLayer} in which cell values are maximum point height.
 #'
 #' @export
 #'
-get_max_height <- function(las, res = 10, classes = 3:5, nodata = NA) {
+get_max_height <- function(las, res = 10, classes = c(2,3:5,9), nodata = NA) {
   if (!is.na(nodata)) {
     if (is.null(nodata)) nodata <- NA
     else if (is.numeric(nodata)) nodata <- as.integer(nodata[1])
@@ -1123,22 +1211,21 @@ get_max_height <- function(las, res = 10, classes = 3:5, nodata = NA) {
 
   stopifnot(res > 0)
 
-  rbase <- raster::raster(extent(las), res = res)
+  las_sub <- lidR::filter_poi(las, Classification %in% classes)
+  #r <- lidR::grid_canopy(las_sub, res = res, algorithm = lidR::p2r(1))
 
-  ii <- las@data$Classification %in% classes
-  if (!any(ii)) {
-    r <- rbase
-    values(r) <- nodata
-  } else {
-    r <- rasterize(as.matrix(las@data[ii, c("X", "Y"), drop = FALSE]),
-                   rbase,
-                   field = las@data$Z[ii],
-                   fun = function(x, na.rm) {
-                     x <- na.omit(x)
-                     if (length(x) == 0) nodata
-                     else max(x)
-                   })
-  }
+  xy <- as.matrix(las_sub@data[, c("X", "Y")])
+  z <- las_sub@data$Z
+
+  ext <- get_las_bounds(las, type = "terra")
+  rbase <- terra::rast(ext, resolution = res)
+
+  # Still using raster function here because it is much faster than
+  # creating a SpatVect point object and calling terra::rasterize
+  r <- raster::rasterize(xy, raster::raster(rbase), field = z, fun = max, background = nodata)
+
+  r <- terra::rast(r)
+  terra::crs(r) <- sf::st_as_text( sf::st_crs(las) )
 
   r
 }
