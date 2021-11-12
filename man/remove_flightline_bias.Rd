@@ -104,6 +104,9 @@ overlap. However, this effect can be minimized by working at a finer raster
 resolution.
 }
 \seealso{
-\code{\link{get_flightline_info}}, \code{\link{check_flightlines}},
-  \code{\link{get_flightline_polygons}}, \code{\link{plot_flightline_points}}
+\code{\link{check_flightline_orientation}},
+  \code{\link{check_overlap_bias}},
+  \code{\link{get_flightline_info}},
+  \code{\link{get_flightline_polygons}},
+  \code{\link{plot_flightline_points}}
 }

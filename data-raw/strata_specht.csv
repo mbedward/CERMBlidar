@@ -1,0 +1,7 @@
+"strata_def","index","label","lowerht","upperht"
+"specht",1,"Ground",-999,0.5
+"specht",2,"LowShrub",0.5,2
+"specht",3,"TallShrub",2,5
+"specht",4,"LowTree",5,10
+"specht",5,"MediumTree",10,30
+"specht",6,"TallTree",30,999

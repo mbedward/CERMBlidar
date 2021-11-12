@@ -3,19 +3,21 @@
 \docType{data}
 \name{StrataOFH}
 \alias{StrataOFH}
-\title{Strata definitions for OFH (Overall Fuel Hazard)}
+\title{Strata definitions used for Overall Fuel Hazard Assessment in New South Wales.}
 \format{
-A data frame (tbl_df) with 4 rows and 3 columns:
+A data frame with 5 rows and 5 columns:
 \describe{
-\item{name}{Stratum name (NearSurface, Elevated, LowCanopy, UpperCanopy)}
-\item{lower}{Lower height of stratum (metres)}
-\item{upper}{Upper height of stratum (metres)}
+\item{strata_def}{Name for this strata scheme ('ofh')}
+\item{index}{Integer index, ordered by height level}
+\item{label}{Stratum name (Ground, NearSurface, Elevated, LowCanopy, UpperCanopy)}
+\item{lowerht}{Lower height of stratum (metres; -999.0 for ground layer)}
+\item{upperht}{Upper height of stratum (metres; 999.0 for top layer)}
 }
 }
 \usage{
 StrataOFH
 }
 \description{
-Strata definitions for OFH (Overall Fuel Hazard)
+Strata definitions used for Overall Fuel Hazard Assessment in New South Wales.
 }
 \keyword{datasets}

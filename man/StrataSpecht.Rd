@@ -3,19 +3,21 @@
 \docType{data}
 \name{StrataSpecht}
 \alias{StrataSpecht}
-\title{Strata definitions based on Specht}
+\title{Strata definitions adapted from Specht 1970, 1974.}
 \format{
-A data frame (tbl_df) with 5 rows and 3 columns:
+A data frame with 6 rows and 5 columns:
 \describe{
-\item{name}{Stratum name (LowShrub, TallShrub, LowTree, MediumTree, TallTree)}
-\item{lower}{Lower height of stratum (metres)}
-\item{upper}{Upper height of stratum (metres)}
+\item{strata_def}{Name for this strata scheme ('specht')}
+\item{index}{Integer index, ordered by height level}
+\item{label}{Stratum name (Ground, LowShrub, TallShrub, LowTree, MediumTree, TallTree)}
+\item{lowerht}{Lower height of stratum (metres; -999.0 for ground layer)}
+\item{upperht}{Upper height of stratum (metres; 999.0 for top layer)}
 }
 }
 \usage{
 StrataSpecht
 }
 \description{
-Strata definitions based on Specht
+Strata definitions adapted from Specht 1970, 1974.
 }
 \keyword{datasets}

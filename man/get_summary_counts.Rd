@@ -18,13 +18,15 @@ May include 2 (ground), 3 (low veg), 4 (mid veg), 5 (high veg), 35 (all veg
 default is to summarize all of the above.}
 }
 \value{
-A \code{RasterStack} with a layer for each requested attribute.
+A \code{terra::SpatRast} object with a layer for each requested
+  attribute.
 }
 \description{
-Given a LAS tile and a raster cell size, this function creates raster layers
-where cell values in each layer are point counts over all heights for a given
-point class. A layer can also be created for all three vegetation classes
-combined. The resulting layers are returned as a \code{RasterStack} object.
+Given a LAS tile and a raster cell size, this function creates a raster
+object with a band for each point class being considered. Cell values in each
+band give the point count over all heights for the given point class. A layer
+can also be created for all three vegetation classes combined. The resulting
+layers are returned as a \code{terra::SpatRast} object.
 }
 \examples{
 \dontrun{

@@ -38,9 +38,10 @@ ground level. Can be one of the following:
     normalized using the specified algorithm. Must be one of:
     \code{'tin', 'knnidw', 'kriging'} which correspond to the algorithm
     functions provided by the \code{lidR} package.}
-  \item{A raster layer}{If a raster layer is provided, the cell values
-    will be used as ground elevation to normalize point heights. The layer
-    should have the same or greater extent as the LAS file.}
+  \item{A raster layer}{If a raster layer (a terra package \code{SpatRast}
+    object or a raster package \code{RasterLayer} object) is provided, the
+    cell values will be used as ground elevation to normalize point heights.
+    The layer should have the same or greater extent as the LAS file.}
   \item{A raster filename}{Any character string that does not match one of
     the supported algorithm names will be treated as the path to a raster
     file. Supported formats are GeoTIFF ('.tif') and ESRI ASCII ('.asc').

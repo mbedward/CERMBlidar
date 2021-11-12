@@ -2,15 +2,16 @@
 % Please edit documentation in R/tile_functions.R
 \name{get_stratum_counts}
 \alias{get_stratum_counts}
-\title{Get vegetation point counts for defined strata.}
+\title{Get LiDAR point counts for defined strata.}
 \usage{
 get_stratum_counts(las, strata, res = 10, classes = c(2, 3, 4, 5, 9))
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
 
-\item{strata}{A data frame of strata definitions with three columns:
-name, lower, upper.}
+\item{strata}{A data frame of strata definitions with (at least) three
+columns: label, lowerht, upperht. Strata must cover all heights and be
+non-overlapping. This will be checked by the function \code{check_strata}.}
 
 \item{res}{Raster cell size.}
 
@@ -18,9 +19,17 @@ name, lower, upper.}
 Default is 2 (ground) and 3:5 (vegetation) and 9 (water).}
 }
 \value{
-A \code{RasterStack} where each layer corresponds to a stratum
-  (or ground) and cell values are point counts.
+A \code{terra::SpatRast} object where each band corresponds to a
+  stratum (including the ground layer) and cell values are voxel point
+  counts.
 }
 \description{
-Get vegetation point counts for defined strata.
+Give a LAS tile and a set of height ranges, this function creates a
+multi-band raster where the cells in each band represent voxels for a given
+stratum, and each cell value is the number of points within the voxel. This
+can be used as the first step in the calculation of vegetation cover
+estimates.
+}
+\seealso{
+\code{\link{check_strata}}
 }

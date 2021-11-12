@@ -84,8 +84,11 @@
 #'
 #' @return A modified copy of the input LAS object.
 #'
-#' @seealso \code{\link{get_flightline_info}}, \code{\link{check_flightlines}},
-#'   \code{\link{get_flightline_polygons}}, \code{\link{plot_flightline_points}}
+#' @seealso \code{\link{check_flightline_orientation}},
+#'   \code{\link{check_overlap_bias}},
+#'   \code{\link{get_flightline_info}},
+#'   \code{\link{get_flightline_polygons}},
+#'   \code{\link{plot_flightline_points}}
 #'
 #' @export
 #'

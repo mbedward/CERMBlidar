@@ -448,7 +448,7 @@ check_overlap_bias <- function(las,
 #'   xlen, ylen, orientation and geometry (minimum bounding rectangle of flight
 #'   line).
 #'
-#' @seealso \code{\link{check_flightlines}}
+#' @seealso \code{\link{check_flightline_orientation}}
 #'
 #' @export
 #'

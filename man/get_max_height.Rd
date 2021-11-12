@@ -4,7 +4,7 @@
 \alias{get_max_height}
 \title{Derive a raster of maximum point height in all or selected classes}
 \usage{
-get_max_height(las, res = 10, classes = 3:5, nodata = NA)
+get_max_height(las, res = 10, classes = c(2, 3:5, 9), nodata = NA)
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
@@ -13,9 +13,10 @@ get_max_height(las, res = 10, classes = 3:5, nodata = NA)
 the LAS data is in a projected coordinate system with metres as units.}
 
 \item{classes}{Point classes to include when calculating maximum height
-for each cell. Default is 3:5 (low, mid and high vegetation).}
+for each cell. Default is c(2, 3:5, 9) for ground, vegetation and
+water point classes.}
 
-\item{nodata}{Integer value for cells with no points. Default is \code{NA}.}
+\item{background}{Integer value for cells with no points. Default is \code{NA}.}
 }
 \value{
 A \code{RasterLayer} in which cell values are maximum point height.

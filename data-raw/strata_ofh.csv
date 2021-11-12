@@ -1,0 +1,6 @@
+"strata_def","index","label","lowerht","upperht"
+"ofh",1,"Ground",-999,0.3
+"ofh",2,"NearSurface",0.3,0.5
+"ofh",3,"Elevated",0.5,5
+"ofh",4,"LowCanopy",5,15
+"ofh",5,"UpperCanopy",15,999

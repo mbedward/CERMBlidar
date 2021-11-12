@@ -1,8 +1,8 @@
 Package: CERMBlidar
 Type: Package
 Title: A collection of functions to process aerial LIDAR data
-Version: 0.3.0
-Date: 2021-11-11
+Version: 0.3.1
+Date: 2021-11-12
 Authors@R: c(
   person("Michael", "Bedward", role = c("aut", "cre"), email = "michael.bedward@gmail.com"),
   person("Meaghan", "Jenkins", role = "aut")

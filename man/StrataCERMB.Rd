@@ -3,11 +3,13 @@
 \docType{data}
 \name{StrataCERMB}
 \alias{StrataCERMB}
-\title{Strata definitions for CERMB use.}
+\title{Strata definitions used by CERMB.}
 \format{
-A data frame (tbl_df) with 61 rows and 3 columns:
+A data frame with 6 rows and 5 columns:
 \describe{
-\item{name}{Stratum label ('to0.3', 'to0.5', 'to1.0' ... 'over30.0')}
+\item{strata_def}{Name for this strata scheme ('cermb')}
+\item{index}{Integer index, ordered by height level}
+\item{label}{Stratum label (Ground, 'upto0.5m', 'upto1m' ... 'over80m')}
 \item{lower}{Lower height of stratum (metres)}
 \item{upper}{Upper height of stratum (metres)}
 }
@@ -16,8 +18,10 @@ A data frame (tbl_df) with 61 rows and 3 columns:
 StrataCERMB
 }
 \description{
-The lowest two strata are 0-0.3m and 0.3-0.5m. Subsequent strata are
-0.5m intervals up to 10m; then 1m intervals up to 30m; then 5m
-intervals up to 80m; then a catch-all layer for >80m.
+Strata used within the Centre for Environmental Risk Management of Bushfires,
+University of Wollongong, to rasterize LiDAR point clouds. The lowest two
+strata are 0-0.3m and 0.3-0.5m. Subsequent strata are 0.5m intervals up to
+10m; then 1m intervals up to 30m; then 5m intervals up to 80m; then a
+catch-all layer for >80m.
 }
 \keyword{datasets}

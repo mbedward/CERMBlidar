@@ -59,5 +59,5 @@ rectangles, the point GPS times are checked along the X and Y dimensions to
 determine the final orientation.
 }
 \seealso{
-\code{\link{check_flightlines}}
+\code{\link{check_flightline_orientation}}
 }

@@ -4,7 +4,11 @@
 \alias{get_las_bounds}
 \title{Get bounds from the header of a LAS file or object}
 \usage{
-get_las_bounds(x, type = c("vec", "wkt", "sf"), unzip.dir = NULL)
+get_las_bounds(
+  x,
+  type = c("vec", "wkt", "sfc", "bbox", "terra"),
+  unzip.dir = NULL
+)
 }
 \arguments{
 \item{x}{Either a character string specifying the path to a file, or a
@@ -15,7 +19,10 @@ file.}
 
 \item{type}{Either \code{'vec'} (default) to return a named vector of min and
 max coordinates and EPSG code; \code{'wkt'} to return an EWKT text string,
-or \code{'sf'} to return a geometry list containing the bounding polygon.}
+\code{'sfc'} to return an \code{sf} package geometry list with a polygon,
+\code{'bbox'} to return an \code{sf} package bounding box object, or
+\code{'terra'} to return a \code{'terra'} package \code{'SpatExtent'}
+object.}
 
 \item{unzip.dir}{The directory in which to uncompress a compressed LAS file
 (identified by a '.zip' extension). If \code{NULL} (default) a temporary
@@ -31,16 +38,16 @@ The bounding polygon in the format specified by the \code{type}
 This function reads the bounding coordinates and projection information from
 the header of either a LAS file on disk (either compressed or uncompressed)
 or LAS object imported via \code{prepare_tile}. The bounds are returned as
-either a named vector, an EWKT (Extended Well Known Text) string specifier,
-or a simple feature geometry list object (class \code{sf::st_sfc}) containing
-a single polygon.
+either: a named vector, an EWKT (Extended Well Known Text) string specifier,
+an \code{sf} package bounding box, an \code{sf} package geometry list object
+or a \code{terra} package \code{SpatExtent} object.
 }
 \examples{
 \dontrun{
 # Read bounds from a zipped LAS file and return as a vector
 bounds <- get_las_bounds("c:/somewhere/myfile.zip")
 
-# Get bounds as an 'sf' polygon geometry list
+# Get bounds as an 'sf' bounding box
 bounds <- get_las_bounds("c:/somewhere/myfile.zip", type = "sf")
 print(bounds)
 plot(bounds)

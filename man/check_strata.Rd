@@ -10,14 +10,14 @@ check_strata(strata)
 \item{strata}{A data frame of strata definitions.}
 }
 \value{
-A data frame in standard form with columns name, lower, upper,
-  and rows ordered by ascending stratum heights.
+A data frame in standard form with (at least) columns: label,
+  lowerht, upperht, and rows ordered by ascending stratum heights.
 }
 \description{
 This function is used by \code{\link{get_stratum_counts}}. It checks that:
 \itemize{
   \item The object is a data frame with (at least) three columns labelled:
-    name, lower, upper. Column order and case of names does not matter.
+    label, lowerht, upperht. Column order and case of names does not matter.
   \item All stratum upper heights are greater than lower heights.
   \item No two strata overlap (gaps between strata are permitted).
 }
