@@ -1386,9 +1386,9 @@ get_strata_transform <- function(from_strata, to_strata,
 
   # Create and return the transform table
   from_strata %>%
-    rename_with( ~ paste0("from_", .x) ) %>%
+    dplyr::rename_with( ~ paste0("from_", .x) ) %>%
 
-    mutate(to_index = cut(from_upperht,
+    dplyr::mutate(to_index = cut(from_upperht,
                           breaks = c(-Inf, to_strata$upperht),
                           labels = FALSE,
                           right = TRUE),
