@@ -1141,11 +1141,15 @@ get_building_points <- function(las) {
 #'   \code{get_stratum_counts()}, but it may also be a \code{RasterStack} or
 #'   \code{RasterBrick} (\code{raster} package) object.
 #'
+#' @param background Value (default \code{NA}) to assign as the cover value for
+#'   a stratum when there are no LiDAR points for the stratum or any lower
+#'   strata.
+#'
 #' @return A \code{SpatRast} object with a band for each vegetation stratum.
 #'
 #' @export
 #'
-get_stratum_cover <- function(rcounts) {
+get_stratum_cover <- function(rcounts, background = NA) {
   if (inherits(rcounts, "SpatRaster")) {
     # nothing to do
   } else if (inherits(rcounts, c("RasterBrick", "RasterStack"))) {
@@ -1170,7 +1174,7 @@ get_stratum_cover <- function(rcounts) {
   rcover <- lapply(2:N, function(i) {
     rsum <<- rsum + terra::subset(rcounts, i)
     r <- subset(rcounts, i) / rsum
-    r[is.nan(r)] <- 0
+    r[is.nan(r)] <- background
     r
   })
 
@@ -1300,7 +1304,7 @@ check_strata <- function(strata) {
   names <- tolower( colnames(strata) )
 
   if (!all( c("label", "lowerht", "upperht") %in% names ))
-    stop("Strata lookup table should have columns: name, lower, upper")
+    stop("Strata lookup table should have columns: label, lowerht, upperht")
 
   colnames(strata) <- names
 
@@ -1316,6 +1320,80 @@ check_strata <- function(strata) {
     stop("Strata lookup table has overlapping strata")
 
   strata
+}
+
+
+#' Create a transformation table for two sets of strata
+#'
+#' Creates a transformation table that can be used to aggregate a set of input
+#' strata into a reduced number of broader output strata. The table can be used
+#' with function \code{aggregate_stratum_counts} to combine the bands of a point
+#' count raster. Usually the reduced strata will cover the same range of heights
+#' as the input strata, but it is also possible to create a subset table, e.g.
+#' only covering lower heights. The height boundaries of input and output
+#' strata must align. For example, if the input strata included two levels for
+#' 2-5m and 5-10m, these could be aggregated into a layer for 2-10m but not into
+#' a layer for 2-8m.
+#'
+#' @param from_strata Data frame defining the input strata to be aggregated, in
+#'   the format used by functions \code{check_strata} and
+#'   \code{get_stratum_counts}. The number of strata should be greater than that
+#'   of \code{to_strata}.
+#'
+#' @param to_strata Data frame defining the broader, transformed output strata,
+#'   in the format used by functions \code{check_strata} and
+#'   \code{get_stratum_counts}. The number of strata should be greater than that
+#'   of \code{to_strata}.
+#'
+#' @param flag_lowerht Value(s) used for the lower height of the lower-most
+#'   stratum, which is usually treated as having no lower bound. Default is
+#'   \code{c(-Inf, -999.0)}
+#'
+#' @param flag_upperht Value(s) used for the upper height of the upper-most
+#'   stratum, which is usually treated as having no upper bound. Default is
+#'   \code{c(-Inf, -999.0)}
+#'
+#' @return A data frame defining the transformation.
+#'
+#' @seealso \code{\link{check_strata}} and \code{\link{get_stratum_counts}}
+#'
+#' @examples
+#' xtrans <- get_strata_transform(CERMBlidar::StrataCERMB, CERMBlidar::StrataSpecht)
+#'
+#' # This transform is invalid
+#'
+#' @export
+#'
+get_strata_transform <- function(from_strata, to_strata,
+                                 flag_lowerht = c(-Inf, -999.0),
+                                 flag_upperht = c(Inf, 999.0)) {
+
+  from_strata <- check_strata(from_strata)
+  to_strata <- check_strata(to_strata)
+
+  if (nrow(from_strata) <= nrow(to_strata)) {
+    stop("from_strata should have more layers than to_strata")
+  }
+
+  # Check if transform will be valid
+  ii <- !(to_strata$lowerht %in% flag_lowerht)
+  ok <- all(to_strata$lowerht[ii] %in% from_strata$lowerht)
+  if (!ok) stop("One or more lower heights in to_strata do not align with from_strata")
+
+  ii <- !(to_strata$upperht %in% flag_upperht)
+  ok <- all(to_strata$upperht[ii] %in% from_strata$upperht)
+  if (!ok) stop("One or more upper heights in to_strata do not align with from_strata")
+
+  # Create and return the transform table
+  from_strata %>%
+    rename_with( ~ paste0("from_", .x) ) %>%
+
+    mutate(to_index = cut(from_upperht,
+                          breaks = c(-Inf, to_strata$upperht),
+                          labels = FALSE,
+                          right = TRUE),
+
+           to_label = to_strata$label[to_index] )
 }
 
 
