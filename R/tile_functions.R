@@ -78,7 +78,7 @@ get_las_bounds <- function(x, type = c("vec", "wkt", "sfc", "bbox", "terra"), un
                ymin = min(las@data$Y),
                ymax = max(las@data$Y))
 
-    xcrs <- sf::st_crs(x)
+    xcrs <- get_horizontal_crs(x)
 
   } else if (is.character(x)) {
     if (length(x) > 1) {
@@ -158,27 +158,30 @@ get_las_bounds <- function(x, type = c("vec", "wkt", "sfc", "bbox", "terra"), un
 }
 
 
-#' Get the horizontal coordinate reference system
+#' Get the horizontal coordinate reference system for a spatial object
 #'
 #' Recent LiDAR data (e.g. from 2020 in Australia) can have a compound
 #' coordinate reference system defined that consists of a horizontal and a
 #' vertical component. Usually, we just want to use the horizontal component for
 #' derived raster layers. This function extracts the horizontal component and
 #' returns it as a \code{crs} object as used by the \code{sf} package. If the
-#' input object has a simple (i.e. non-compound) coordinate reference syste,
-#' that will be returned unchanged.
+#' input object has a simple (i.e. non-compound) coordinate reference system,
+#' it will be returned unchanged.
 #'
-#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
+#' @param x An object with an associated coordinate reference system that can
+#'   be retrieved using function \code{sf::st_crs()}. Usually this will be a
+#'   LAS object, e.g. imported using \code{prepare_tile}, but any other spatial
+#'   object class is acceptable.
 #'
 #' @return An \code{sf} package \code{crs} object.
 #'
 #' @export
 #'
-get_horizontal_crs <- function(las) {
-  if (!inherits(las, "LAS")) stop("Expected a LAS object, e.g. from lidR::readLAS()")
+get_horizontal_crs <- function(x) {
+  xcrs <- sf::st_crs(x)
+  if (is.na(xcrs)) return(xcrs)
 
-  las_crs <- sf::st_crs(las)
-  wkt <- sf::st_as_text(las_crs)
+  wkt <- sf::st_as_text(xcrs)
 
   if (!grepl("COMPD_CS", wkt)) {
     # Should just be a horizontal CRS - simply return it
@@ -997,7 +1000,7 @@ get_summary_counts <- function(las, res = 10, classes = NULL) {
   ii <- match(classes, ClassLookup$code)
   names(res) <- ClassLookup$label[ii]
 
-  terra::crs(res) <- sf::st_as_text(sf::st_crs(las))
+  terra::crs(res) <- sf::st_as_text( get_horizontal_crs(las) )
 
   res
 }
@@ -1086,7 +1089,10 @@ get_stratum_counts <- function(las, strata, res = 10, classes = c(2,3,4,5,9)) {
 
   rcounts <- terra::rast(rcounts)
   names(rcounts) <- strata$label
-  terra::crs(rcounts) <- sf::st_as_text(sf::st_crs(las))
+
+  # Note: guard against compound CRS (horizontal + vertical) now used
+  # by recent LiDAR files
+  terra::crs(rcounts) <- sf::st_as_text( get_horizontal_crs(las) )
 
   rcounts
 }
@@ -1123,7 +1129,8 @@ get_building_points <- function(las) {
     dplyr::filter(Classification == 6) %>%
     dplyr::select(X, Y, Z)
 
-  sf::st_as_sf(dat, coords = c("X", "Y"))
+  sf::st_as_sf(dat, coords = c("X", "Y"),
+               crs = get_horizontal_crs(las))
 }
 
 
@@ -1233,7 +1240,7 @@ get_max_height <- function(las, res = 10, classes = c(2,3:5,9), nodata = NA) {
   r <- raster::rasterize(xy, raster::raster(rbase), field = z, fun = max, background = nodata)
 
   r <- terra::rast(r)
-  terra::crs(r) <- sf::st_as_text( sf::st_crs(las) )
+  terra::crs(r) <- sf::st_as_text( get_horizontal_crs(las) )
 
   r
 }
