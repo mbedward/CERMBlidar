@@ -377,6 +377,11 @@ check_overlap_bias <- function(las,
   x <- sf::st_join(ov_polys, pts, join = sf::st_contains) %>%
     sf::st_drop_geometry() %>%
 
+    # Any polygons that had no points within them will be present
+    # as a record with NA for Classification. These should only be tiny
+    # areas so we just drop them.
+    dplyr::filter(!is.na(Classification)) %>%
+
     dplyr::group_by(overlap, Classification) %>%
     dplyr::summarize(npoints = n()) %>%
 
