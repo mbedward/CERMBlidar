@@ -380,7 +380,9 @@ check_overlap_bias <- function(las,
   # to ground points
   fn_ratio <- function(Classification, npoints) {
     iground <- which(Classification %in% ground_classes)
-    ratio <- npoints / npoints[iground]
+
+    ratio[iground] <- 1
+    ratio[!iground] <- npoints[!iground] / sum(npoints[iground])
 
     ratio
   }
