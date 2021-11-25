@@ -375,13 +375,31 @@ check_overlap_bias <- function(las,
   pts <- las@data[ii, c("X", "Y", "Classification")] %>%
     sf::st_as_sf(coords = c("X", "Y"), crs = get_horizontal_crs(las))
 
+  # Quick checks for degenerate data
+  if (!any(pts$Classification %in% ground_classes)) {
+    msg <- glue::glue("No ground points found in the sample of {nsample_points} points
+                       from the point cloud. Cannot calculate overlap bias.")
+    stop(msg)
+  }
+
+  if (!any(pts$Classification %in% veg_classes)) {
+    msg <- glue::glue("No vegetation points found in the sample of {nsample_points} points
+                       from the point cloud.")
+    warning(msg)
+
+    is_bias <- FALSE
+    attributes(is_bias) <- list(nsample_points = nsample_points,
+                                ratio_data = NULL)
+    return(is_bias)
+  }
+
 
   # Helper function to calculate the ratio of veg class points
-  # to ground points
+  # to ground points. Sets ratio of ground classes to 1.
   fn_ratio <- function(Classification, npoints) {
-    iground <- which(Classification %in% ground_classes)
+    iground <- Classification %in% ground_classes
 
-    ratio[iground] <- 1
+    ratio <- rep(1, length(Classification))
     ratio[!iground] <- npoints[!iground] / sum(npoints[iground])
 
     ratio
