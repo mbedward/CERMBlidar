@@ -4,7 +4,13 @@
 \alias{check_overlap_bias}
 \title{Performs a simple check for point class bias within flightline overlaps}
 \usage{
-check_overlap_bias(las, ov_polys, nsample_points = 1e+05, bias_threshold = 2)
+check_overlap_bias(
+  las,
+  ov_polys,
+  nsample_points = 1e+05,
+  bias_threshold = 2,
+  water_as_ground = TRUE
+)
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
@@ -14,6 +20,9 @@ function \code{get_flightline_overlaps}.}
 
 \item{bias_threshold}{The threshold value, above which bias is considered to
 be present. Default value is 2. See Details for more explanation.}
+
+\item{water_as_ground}{If \code{TRUE} (default), treat class 9 (water) points as
+ground points when calculating vegetation class ratio values.}
 
 \item{n_sample_points}{The number of points to sample from the LiDAR point
 cloud.}

@@ -324,6 +324,9 @@ get_flightline_overlaps <- function(polys) {
 #' @param bias_threshold The threshold value, above which bias is considered to
 #'   be present. Default value is 2. See Details for more explanation.
 #'
+#' @param water_as_ground If \code{TRUE} (default), treat class 9 (water) points as
+#'   ground points when calculating vegetation class ratio values.
+#'
 #' @return A logical value, where \code{TRUE} indicates that bias has been
 #'   detected. An attributes list is attached to the value with elements
 #'   \code{nsample_points} and \code{ratio_data}. The latter element is a
@@ -354,10 +357,19 @@ get_flightline_overlaps <- function(polys) {
 check_overlap_bias <- function(las,
                                ov_polys,
                                nsample_points = 1e5,
-                               bias_threshold = 2.0) {
+                               bias_threshold = 2.0,
+                               water_as_ground = TRUE) {
+
+  if (water_as_ground) {
+    ground_classes <- c(2, 9)
+  } else {
+    ground_classes <- 2
+  }
+
+  veg_classes <- 3:5
 
   # Create an sf point data layer for sample points
-  ii <- which(las$Classification %in% 2:5)
+  ii <- which(las$Classification %in% c(ground_classes, veg_classes))
   ii <- sample(ii, size = min(nsample_points, length(ii)))
 
   pts <- las@data[ii, c("X", "Y", "Classification")] %>%
@@ -367,7 +379,7 @@ check_overlap_bias <- function(las,
   # Helper function to calculate the ratio of veg class points
   # to ground points
   fn_ratio <- function(Classification, npoints) {
-    iground <- which(Classification == 2)
+    iground <- which(Classification %in% ground_classes)
     ratio <- npoints / npoints[iground]
 
     ratio
@@ -384,6 +396,10 @@ check_overlap_bias <- function(las,
 
     dplyr::group_by(overlap, Classification) %>%
     dplyr::summarize(npoints = n()) %>%
+
+    # Fill any missing combinations with zero counts
+    dplyr::ungroup() %>%
+    tidyr::complete(overlap, Classification, fill = list(npoints = 0)) %>%
 
     dplyr::group_by(overlap) %>%
     dplyr::mutate(ratio = fn_ratio(Classification, npoints)) %>%
