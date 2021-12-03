@@ -185,7 +185,7 @@ get_horizontal_crs <- function(x) {
 
   if (!grepl("COMPD_CS", wkt)) {
     # Should just be a horizontal CRS - simply return it
-    las_crs
+    xcrs
   } else {
     # Extract the horizontal component
     i <- regexpr("PROJCS\\[", wkt)
