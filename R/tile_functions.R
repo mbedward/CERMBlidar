@@ -875,14 +875,14 @@ get_scan_times <- function(las, by) {
 }
 
 
-#' Check for, and optionally drop, points with zero GPS time
+#' Check for and drop any points with zero GPS times
 #'
 #' Sometimes the GPS time for a point is zero rather than the expected large
-#' integer value, which will lead to incorrect capture times being reported for
-#' the LiDAR tile. This function checks for the presence of such invalid GPS
-#' times and, optionally, drops those points from the data if they constitue no
-#' more than a specified proportion of the total points. The function returns
-#' the (possibly modified) LAS object.
+#' integer value (seconds since epoch), which will lead to incorrect capture
+#' times being reported for the LiDAR tile. This function checks for the
+#' presence of such invalid GPS times and drops those points from the data if
+#' they constitute no more than a specified proportion of the total points. The
+#' function returns the (possibly modified) LAS object.
 #'
 #' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
@@ -906,9 +906,16 @@ get_scan_times <- function(las, by) {
 #'
 remove_zero_gpstimes <- function(las, max_prop = 0.01, quiet = FALSE) {
   is_zero <- las@data$gpstime == 0
+
   if (any(is_zero)) {
     p <- mean(is_zero)
+
     if (p <= max_prop) {
+      if (!quiet) {
+        msg <- glue::glue("Removing {sum(is_zero)} points with zero GPS time")
+        message(msg)
+      }
+
       las@data <- las@data[!is_zero, ]
       las <- update_tile_header(las)
 
@@ -916,6 +923,10 @@ remove_zero_gpstimes <- function(las, max_prop = 0.01, quiet = FALSE) {
       msg <- glue::glue("Proportion of points with zero GPS time ({round(p, 4)})
                          is greater than the maximum allowable threshold ({max_prop})")
       stop(msg)
+    }
+  } else {
+    if (!quiet) {
+      message("No points have zero GPS time")
     }
   }
 

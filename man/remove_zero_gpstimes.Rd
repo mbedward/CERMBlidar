@@ -2,7 +2,7 @@
 % Please edit documentation in R/tile_functions.R
 \name{remove_zero_gpstimes}
 \alias{remove_zero_gpstimes}
-\title{Check for, and optionally drop, points with zero GPS time}
+\title{Check for and drop any points with zero GPS times}
 \usage{
 remove_zero_gpstimes(las, max_prop = 0.01, quiet = FALSE)
 }
@@ -21,11 +21,11 @@ The (possibly modified) LAS object.
 }
 \description{
 Sometimes the GPS time for a point is zero rather than the expected large
-integer value, which will lead to incorrect capture times being reported for
-the LiDAR tile. This function checks for the presence of such invalid GPS
-times and, optionally, drops those points from the data if they constitue no
-more than a specified proportion of the total points. The function returns
-the (possibly modified) LAS object.
+integer value (seconds since epoch), which will lead to incorrect capture
+times being reported for the LiDAR tile. This function checks for the
+presence of such invalid GPS times and drops those points from the data if
+they constitute no more than a specified proportion of the total points. The
+function returns the (possibly modified) LAS object.
 }
 \examples{
 \dontrun{
