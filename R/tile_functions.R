@@ -850,6 +850,8 @@ get_bounding_rectangle <- function(las, classes = "all", flightlines = "all") {
 #'
 #' @return A data frame of start and end times.
 #'
+#' @seealso \code{\link{remove_zero_gpstimes}}
+#'
 #' @export
 #'
 get_scan_times <- function(las, by) {
@@ -859,8 +861,7 @@ get_scan_times <- function(las, by) {
     by <- match.arg(tolower(by), c("all", "flightline"))
   }
 
-  T0 <- lubridate::ymd_hms("1980-01-06 00:00:00", tz = "GMT")
-  times <- T0 + lubridate::seconds(1e9 + las@data$gpstime)
+  times <- .get_point_gpstimes(las)
 
   if (by == "all") {
     data.frame(time.start = min(times), time.end = max(times))
@@ -871,6 +872,65 @@ get_scan_times <- function(las, by) {
       dplyr::summarize(time.start = min(times), time.end = max(times)) %>%
       dplyr::arrange(flightlineID)
   }
+}
+
+
+#' Check for, and optionally drop, points with zero GPS time
+#'
+#' Sometimes the GPS time for a point is zero rather than the expected large
+#' integer value, which will lead to incorrect capture times being reported for
+#' the LiDAR tile. This function checks for the presence of such invalid GPS
+#' times and, optionally, drops those points from the data if they constitue no
+#' more than a specified proportion of the total points. The function returns
+#' the (possibly modified) LAS object.
+#'
+#' @param las A LAS object, e.g. imported using \code{prepare_tile}.
+#'
+#' @param max_prop The maximum proportion of points with zero GPS times. This
+#'   should be set to a small value (default is 0.01). If the proportion of zero
+#'   GPS times exceeds this value, the function will throw an error.
+#'
+#' @param quiet Set to \code{TRUE} to suppress messages. Default is
+#'   \code{FALSE}.
+#'
+#' @return The (possibly modified) LAS object.
+#'
+#' @examples
+#' \dontrun{
+#' las <- remove_zero_gpstimes(las)
+#' }
+#'
+#' @seealso \code{\link{get_scan_times}}
+#'
+#' @export
+#'
+remove_zero_gpstimes <- function(las, max_prop = 0.01, quiet = FALSE) {
+  is_zero <- las@data$gpstime == 0
+  if (any(is_zero)) {
+    p <- mean(is_zero)
+    if (p <= max_prop) {
+      las@data <- las@data[!is_zero, ]
+      las <- update_tile_header(las)
+
+    } else {
+      msg <- glue::glue("Proportion of points with zero GPS time ({round(p, 4)})
+                         is greater than the maximum allowable threshold ({max_prop})")
+      stop(msg)
+    }
+  }
+
+  las
+}
+
+
+# Private helper function to get point GPStimes as POSIXct
+# date-times
+#
+.get_point_gpstimes <- function(las) {
+  T0 <- lubridate::ymd_hms("1980-01-06 00:00:00", tz = "GMT")
+  times <- T0 + lubridate::seconds(1e9 + las@data$gpstime)
+
+  times
 }
 
 

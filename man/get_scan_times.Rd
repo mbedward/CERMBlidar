@@ -23,3 +23,6 @@ which gives, for each point, scan time expressed as \code{S - 1e9} where
 date-times and finds the start and end values, either for the tile as a whole
 or for individual flightlines.
 }
+\seealso{
+\code{\link{remove_zero_gpstimes}}
+}
