@@ -6,7 +6,7 @@
 \usage{
 prepare_tile(
   path,
-  normalize.heights = "tin",
+  normalize.heights = FALSE,
   treat.as.ground = c(2, 9),
   drop.negative = TRUE,
   drop.negative.threshold = 0,
@@ -53,9 +53,11 @@ ground level. Can be one of the following:
   \item{NULL}{Same as \code{FALSE}, ie. point heights will not be
     normalized.}
 }
-\strong{The default value is \code{'tin'}.}
-If point heights are normalized, the original values are copied to a new
-data table column: 'Zref'.}
+\strong{The default value is \code{FALSE} to leave point heights
+unchanged.} If point heights are normalized, the original values are copied
+to a new data table column \code{'Zref'}, but this is not added to the
+LAS header by default so if the object is written to file the original
+heights will be lost.}
 
 \item{treat.as.ground}{Point classes to treat as ground points when
 normalizing point heights by interpolation using one of the lidR package
@@ -109,5 +111,6 @@ either by fitting a surface model to ground points (plus water points by
 default) or by taking ground elevations from a provided raster DEM. Height
 normalization can be disabled if desired. Flight lines are identified based
 on GPS times for points and, optionally, any flight lines with less than a
-threshold number of points are discarded.
+threshold number of points are discarded. The flightlineID column is added
+to the LAS header so that it will persist if the object is written to file.
 }

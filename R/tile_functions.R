@@ -218,7 +218,8 @@ get_horizontal_crs <- function(x) {
 #' default) or by taking ground elevations from a provided raster DEM. Height
 #' normalization can be disabled if desired. Flight lines are identified based
 #' on GPS times for points and, optionally, any flight lines with less than a
-#' threshold number of points are discarded.
+#' threshold number of points are discarded. The flightlineID column is added
+#' to the LAS header so that it will persist if the object is written to file.
 #'
 #' @param path Path to the LAS or LAZ format file to process. If the file
 #'   extension is '.zip' it is assumed to be a compressed LAS file that will be
@@ -255,9 +256,11 @@ get_horizontal_crs <- function(x) {
 #'     \item{NULL}{Same as \code{FALSE}, ie. point heights will not be
 #'       normalized.}
 #'   }
-#'   \strong{The default value is \code{'tin'}.}
-#'   If point heights are normalized, the original values are copied to a new
-#'   data table column: 'Zref'.
+#'   \strong{The default value is \code{FALSE} to leave point heights
+#'   unchanged.} If point heights are normalized, the original values are copied
+#'   to a new data table column \code{'Zref'}, but this is not added to the
+#'   LAS header by default so if the object is written to file the original
+#'   heights will be lost.
 #'
 #' @param treat.as.ground Point classes to treat as ground points when
 #'   normalizing point heights by interpolation using one of the lidR package
@@ -307,7 +310,7 @@ get_horizontal_crs <- function(x) {
 #' @export
 #'
 prepare_tile <- function(path,
-                         normalize.heights = "tin",
+                         normalize.heights = FALSE,
                          treat.as.ground = c(2,9),
                          drop.negative = TRUE,
                          drop.negative.threshold = 0,
