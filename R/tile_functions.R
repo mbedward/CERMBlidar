@@ -1281,13 +1281,42 @@ get_stratum_cover <- function(rcounts, background = NA) {
 #'   for each cell. Default is c(2, 3:5, 9) for ground, vegetation and
 #'   water point classes.
 #'
+#' @param point_height_range A two-element numeric vector with the minimum and maximum
+#'   heights of points to include when determining the maximum height. The values can be
+#'   in any order. The default is \code{c(0, Inf)}. This can be used, for example when
+#'   determining approximate vegetation height, to filter out points with unusually high
+#'   elevations (e.g. birds or airborne dust). See example below.
+#'
 #' @param background Integer value for cells with no points. Default is \code{NA}.
 #'
 #' @return A \code{RasterLayer} in which cell values are maximum point height.
 #'
+#' @examples
+#' \dontrun{
+#' # Determine approximate vegetation height for each voxel, setting
+#' # the height range filter based on tallest New South Wales tree height
+#' #
+#' rmaxht <- get_max_height(las, classes = 3:5, point_height_range = c(0, 76))
+#' }
+#'
 #' @export
 #'
-get_max_height <- function(las, res = 10, classes = c(2,3:5,9), nodata = NA) {
+get_max_height <- function(las,
+                           res = 10,
+                           classes = c(2,3:5,9),
+                           point_height_range = c(0, Inf),
+                           nodata = NA) {
+
+  ok <- is.vector(point_height_range) &&
+    is.numeric(point_height_range) &&
+    (length(point_height_range) == 2)
+
+  if (!ok) {
+    stop("point_height_range should be a two-element numeric vector")
+  }
+
+  point_height_range <- sort(point_height_range)
+
   if (!is.na(nodata)) {
     if (is.null(nodata)) nodata <- NA
     else if (is.numeric(nodata)) nodata <- as.integer(nodata[1])
@@ -1300,7 +1329,11 @@ get_max_height <- function(las, res = 10, classes = c(2,3:5,9), nodata = NA) {
 
   stopifnot(res > 0)
 
-  las_sub <- lidR::filter_poi(las, Classification %in% classes)
+  las_sub <- lidR::filter_poi(las,
+                              Classification %in% classes,
+                              Z >= point_height_range[1],
+                              Z <= point_height_range[2])
+
   #r <- lidR::grid_canopy(las_sub, res = res, algorithm = lidR::p2r(1))
 
   xy <- as.matrix(las_sub@data[, c("X", "Y")])

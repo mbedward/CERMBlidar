@@ -4,7 +4,13 @@
 \alias{get_max_height}
 \title{Derive a raster of maximum point height in all or selected classes}
 \usage{
-get_max_height(las, res = 10, classes = c(2, 3:5, 9), nodata = NA)
+get_max_height(
+  las,
+  res = 10,
+  classes = c(2, 3:5, 9),
+  point_height_range = c(0, Inf),
+  nodata = NA
+)
 }
 \arguments{
 \item{las}{A LAS object, e.g. imported using \code{prepare_tile}.}
@@ -16,6 +22,12 @@ the LAS data is in a projected coordinate system with metres as units.}
 for each cell. Default is c(2, 3:5, 9) for ground, vegetation and
 water point classes.}
 
+\item{point_height_range}{A two-element numeric vector with the minimum and maximum
+heights of points to include when determining the maximum height. The values can be
+in any order. The default is \code{c(0, Inf)}. This can be used, for example when
+determining approximate vegetation height, to filter out points with unusually high
+elevations (e.g. birds or airborne dust). See example below.}
+
 \item{background}{Integer value for cells with no points. Default is \code{NA}.}
 }
 \value{
@@ -25,4 +37,13 @@ A \code{RasterLayer} in which cell values are maximum point height.
 This is useful for checking purposes. It can also be used to derive
 an approximate vegetation height layer by setting the \code{classes}
 argument to \code{c(3:5)}.
+}
+\examples{
+\dontrun{
+# Determine approximate vegetation height for each voxel, setting
+# the height range filter based on tallest New South Wales tree height
+#
+rmaxht <- get_max_height(las, classes = 3:5, point_height_range = c(0, 76))
+}
+
 }
