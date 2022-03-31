@@ -305,7 +305,8 @@ get_flightline_overlaps <- function(polys) {
 #' substantially between overlapping and non-overlapping areas of flight lines.
 #'
 #' The check performed by this function is a simple heuristic rather than being
-#' statistically rigorous, but it seems to work. For each of overlapping and
+#' statistically rigorous. It seems to work most (but not all) of the time, but can fail
+#' when the pattern of flight lines is complex. For each of overlapping and
 #' non-overlapping flight line areas, the number of points for each class is
 #' determined. Next, the ratio of vegetation points to ground points is
 #' calculated for each of the vegetation classes. Finally, these ratios are
@@ -338,7 +339,9 @@ get_flightline_overlaps <- function(polys) {
 #'   \code{nsample_points} and \code{ratio_data}. The latter element is a
 #'   data frame with a record for each point class, and columns for the
 #'   number of points and ratio of vegetation class to ground class points
-#'   within each of overlapping and non-overlapping areas.
+#'   within each of overlapping and non-overlapping areas. Note that the
+#'   attributes will be missing if there were no overlapping flight line
+#'   polygons.
 #'
 #' @examples
 #' \dontrun{
@@ -374,6 +377,24 @@ check_overlap_bias <- function(las,
   }
 
   veg_classes <- 3:5
+
+  # Check for no overlap polygons
+  if (!any(grepl("overlapping", ov_polys$overlap))) {
+    return(FALSE)
+  }
+
+  # Check for only very small total overlap proportion
+  prop_overlap <- ov_polys %>%
+    sf::st_drop_geometry() %>%
+    dplyr::group_by(overlap) %>%
+    dplyr::summarize(area = sum(area)) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(prop = area / sum(area)) %>%
+    dplyr::filter(overlap == "overlapping") %>%
+    dplyr::pull(prop)
+
+  if (prop_overlap < 0.01) return(FALSE)
+
 
   # Create an sf point data layer for sample points
   ii <- which(las$Classification %in% c(ground_classes, veg_classes))

@@ -40,7 +40,9 @@ A logical value, where \code{TRUE} indicates that bias has been
   \code{nsample_points} and \code{ratio_data}. The latter element is a
   data frame with a record for each point class, and columns for the
   number of points and ratio of vegetation class to ground class points
-  within each of overlapping and non-overlapping areas.
+  within each of overlapping and non-overlapping areas. Note that the
+  attributes will be missing if there were no overlapping flight line
+  polygons.
 }
 \description{
 This function examines ground (class 2) and vegetation (classes 3-5) points
@@ -49,7 +51,8 @@ substantially between overlapping and non-overlapping areas of flight lines.
 }
 \details{
 The check performed by this function is a simple heuristic rather than being
-statistically rigorous, but it seems to work. For each of overlapping and
+statistically rigorous. It seems to work most (but not all) of the time, but can fail
+when the pattern of flight lines is complex. For each of overlapping and
 non-overlapping flight line areas, the number of points for each class is
 determined. Next, the ratio of vegetation points to ground points is
 calculated for each of the vegetation classes. Finally, these ratios are
