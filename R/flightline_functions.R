@@ -327,6 +327,12 @@ get_flightline_overlaps <- function(polys) {
 #' @param water_as_ground If \code{TRUE} (default), treat class 9 (water) points as
 #'   ground points when calculating vegetation class ratio values.
 #'
+#' @param min_polygon_area The minimum area of polygons to consider. This is
+#'   intended to remove tiny polygons, e.g. that can result from the
+#'   intersection of complex flight lines. The default value of 1000 assumes that
+#'   map units for both the LAS tile and the derived polygon layer (which should
+#'   be in the same map projection) are metres.
+#'
 #' @return A logical value, where \code{TRUE} indicates that bias has been
 #'   detected. An attributes list is attached to the value with elements
 #'   \code{nsample_points} and \code{ratio_data}. The latter element is a
@@ -358,7 +364,8 @@ check_overlap_bias <- function(las,
                                ov_polys,
                                nsample_points = 1e5,
                                bias_threshold = 2.0,
-                               water_as_ground = TRUE) {
+                               water_as_ground = TRUE,
+                               min_polygon_area = 1000) {
 
   if (water_as_ground) {
     ground_classes <- c(2, 9)
@@ -406,11 +413,17 @@ check_overlap_bias <- function(las,
   }
 
 
+  # Drop any really small polygons
+  area <- as.numeric(sf::st_area(ov_polys))
+  keep <- area >= min_polygon_area
+  ov_polys <- ov_polys[keep, , drop = FALSE]
+
+  # Join sample point and polygon data and drop the geometry column
   x <- sf::st_join(ov_polys, pts, join = sf::st_contains) %>%
     sf::st_drop_geometry() %>%
 
     # Any polygons that had no points within them will be present
-    # as a record with NA for Classification. These should only be tiny
+    # as a record with NA for Classification. These should only be very small
     # areas so we just drop them.
     dplyr::filter(!is.na(Classification)) %>%
 

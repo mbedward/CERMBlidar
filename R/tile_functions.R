@@ -1287,7 +1287,7 @@ get_stratum_cover <- function(rcounts, background = NA) {
 #'   determining approximate vegetation height, to filter out points with unusually high
 #'   elevations (e.g. birds or airborne dust). See example below.
 #'
-#' @param background Integer value for cells with no points. Default is \code{NA}.
+#' @param nodata Numeric value for cells with no points. Default is \code{NA_real_}.
 #'
 #' @return A \code{RasterLayer} in which cell values are maximum point height.
 #'
@@ -1305,7 +1305,7 @@ get_max_height <- function(las,
                            res = 10,
                            classes = c(2,3:5,9),
                            point_height_range = c(0, Inf),
-                           nodata = NA) {
+                           nodata = NA_real_) {
 
   ok <- is.vector(point_height_range) &&
     is.numeric(point_height_range) &&
@@ -1318,9 +1318,11 @@ get_max_height <- function(las,
   point_height_range <- sort(point_height_range)
 
   if (!is.na(nodata)) {
-    if (is.null(nodata)) nodata <- NA
-    else if (is.numeric(nodata)) nodata <- as.integer(nodata[1])
-    else stop("Argument nodata should be NA or an integer value")
+    if (is.null(nodata)) {
+      nodata <- NA_real_
+    } else if (!is.numeric(nodata)) {
+      stop("Argument nodata should be NA or a numeric value")
+    }
   }
 
   if (length(classes) == 0 || !is.numeric(classes)) {

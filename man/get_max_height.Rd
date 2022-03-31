@@ -9,7 +9,7 @@ get_max_height(
   res = 10,
   classes = c(2, 3:5, 9),
   point_height_range = c(0, Inf),
-  nodata = NA
+  nodata = NA_real_
 )
 }
 \arguments{
@@ -28,7 +28,7 @@ in any order. The default is \code{c(0, Inf)}. This can be used, for example whe
 determining approximate vegetation height, to filter out points with unusually high
 elevations (e.g. birds or airborne dust). See example below.}
 
-\item{background}{Integer value for cells with no points. Default is \code{NA}.}
+\item{nodata}{Numeric value for cells with no points. Default is \code{NA_real_}.}
 }
 \value{
 A \code{RasterLayer} in which cell values are maximum point height.

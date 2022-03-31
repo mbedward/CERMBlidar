@@ -9,7 +9,8 @@ check_overlap_bias(
   ov_polys,
   nsample_points = 1e+05,
   bias_threshold = 2,
-  water_as_ground = TRUE
+  water_as_ground = TRUE,
+  min_polygon_area = 1000
 )
 }
 \arguments{
@@ -23,6 +24,12 @@ be present. Default value is 2. See Details for more explanation.}
 
 \item{water_as_ground}{If \code{TRUE} (default), treat class 9 (water) points as
 ground points when calculating vegetation class ratio values.}
+
+\item{min_polygon_area}{The minimum area of polygons to consider. This is
+intended to remove tiny polygons, e.g. that can result from the
+intersection of complex flight lines. The default value of 1000 assumes that
+map units for both the LAS tile and the derived polygon layer (which should
+be in the same map projection) are metres.}
 
 \item{n_sample_points}{The number of points to sample from the LiDAR point
 cloud.}
