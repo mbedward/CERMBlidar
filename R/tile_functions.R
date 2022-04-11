@@ -887,6 +887,8 @@ get_scan_times <- function(las, by) {
 #' they constitute no more than a specified proportion of the total points. The
 #' function returns the (possibly modified) LAS object.
 #'
+#' Note: Any points with a missing value for GPS time will be retained.
+#'
 #' @param las A LAS object, e.g. imported using \code{prepare_tile}.
 #'
 #' @param max_prop The maximum proportion of points with zero GPS times. This
@@ -908,18 +910,20 @@ get_scan_times <- function(las, by) {
 #' @export
 #'
 remove_zero_gpstimes <- function(las, max_prop = 0.01, quiet = FALSE) {
-  is_zero <- las@data$gpstime == 0
+  # Using `which` here will safely ignore any NA values in gpstime
+  i_zero <- which(las@data$gpstime == 0)
+  n_zero <- length(i_zero)
 
-  if (any(is_zero)) {
-    p <- mean(is_zero)
+  if (n_zero > 0) {
+    p <- n_zero / nrow(las@data)
 
     if (p <= max_prop) {
       if (!quiet) {
-        msg <- glue::glue("Removing {sum(is_zero)} points with zero GPS time")
+        msg <- glue::glue("Removing {nzero} points with zero GPS time")
         message(msg)
       }
 
-      las@data <- las@data[!is_zero, ]
+      las@data <- las@data[-i_zero, ]
       las <- update_tile_header(las)
 
     } else {

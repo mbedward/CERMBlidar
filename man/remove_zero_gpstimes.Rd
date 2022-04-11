@@ -27,6 +27,9 @@ presence of such invalid GPS times and drops those points from the data if
 they constitute no more than a specified proportion of the total points. The
 function returns the (possibly modified) LAS object.
 }
+\details{
+Note: Any points with a missing value for GPS time will be retained.
+}
 \examples{
 \dontrun{
 las <- remove_zero_gpstimes(las)
