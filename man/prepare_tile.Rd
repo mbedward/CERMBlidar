@@ -10,6 +10,7 @@ prepare_tile(
   treat.as.ground = c(2, 9),
   drop.negative = TRUE,
   drop.negative.threshold = 0,
+  drop.missing.coords = TRUE,
   fields = NULL,
   classes = NULL,
   min.points = 1000,
@@ -73,6 +74,10 @@ ground level will be discarded.}
 \item{drop.negative.threshold}{If \code{drop.negative} is \code{TRUE} AND
 point heights are being normalized, any heights more than this threshold
 value below ground level will be discarded. Default value is zero.}
+
+\item{drop.missing.coords}{If \code{TRUE} (default), discard any points that
+have missing values for the X, Y or Z coordinates. If \code{FALSE}, retain
+the point but issue a warning message.}
 
 \item{fields}{Either \code{NULL} (default) to include all data fields, or a
 character string containing single-letter abbreviations for selected

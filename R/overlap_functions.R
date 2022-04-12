@@ -365,6 +365,12 @@ remove_flightline_bias <- function(las,
   x <- .nibble_flightlines(las, res = res, flightline.ids = included.ids)
   target.id <- raster::extract(x$nibbled, cbind(las@data$X, las@data$Y))
 
+  # Some points right on the edge of the tile can be given NA values
+  # by raster::extract. Set the target.id value for any such points
+  # to -1 so that it will not match any actual flight line IDs (below)
+  # and the points will be retained.
+  target.id <- ifelse(is.na(target.id), -1, target.id)
+
   target <- las@data$Classification %in% classes &
     las@data$flightlineID %in% included.ids
 

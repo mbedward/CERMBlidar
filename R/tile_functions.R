@@ -73,6 +73,11 @@ get_las_bounds <- function(x, type = c("vec", "wkt", "sfc", "bbox", "terra"), un
   type <- match.arg(type)
 
   if (inherits(x, "LAS")) {
+    # Check for any missing coordinates
+    if (anyNA(las@data$X) || anyNA(las@data$Y)) {
+      stop("LAS tile has missing values for X and or Y. Fix this before proceeding.")
+    }
+
     lims <-  c(xmin = min(las@data$X),
                xmax = max(las@data$X),
                ymin = min(las@data$Y),
@@ -277,6 +282,10 @@ get_horizontal_crs <- function(x) {
 #'   point heights are being normalized, any heights more than this threshold
 #'   value below ground level will be discarded. Default value is zero.
 #'
+#' @param drop.missing.coords If \code{TRUE} (default), discard any points that
+#'   have missing values for the X, Y or Z coordinates. If \code{FALSE}, retain
+#'   the point but issue a warning message.
+#'
 #' @param fields Either \code{NULL} (default) to include all data fields, or a
 #'   character string containing single-letter abbreviations for selected
 #'   fields. See \code{\link[lidR]{readLAS}} for details of the available,
@@ -314,11 +323,16 @@ prepare_tile <- function(path,
                          treat.as.ground = c(2,9),
                          drop.negative = TRUE,
                          drop.negative.threshold = 0,
+                         drop.missing.coords = TRUE,
                          fields = NULL,
                          classes = NULL,
                          min.points = 1000,
                          flight.gap = 60,
                          unzip.dir = NULL) {
+
+  # Flag that can be set below to indicate some change has been made to the
+  # LAS data (e.g. dropping points) that requires the header to be updated.
+  NEED_HEADER_UPDATE <- FALSE
 
   if (!is.character(path)) {
     stop("Argument path should be a character string for path and filename.")
@@ -409,10 +423,24 @@ prepare_tile <- function(path,
 
   las <- lidR::readLAS(las.file, select = fields, filter = filtertxt)
 
-  # Check that the tile has some points (rarely we encounter empty tiles)
+  # Check that the tile has some points (on rare occasions there are empty tiles)
   if (is_empty_tile(las)) {
     warning("Point cloud is empty in tile: ", path)
     return(las)
+  }
+
+  # Check for points with missing coordinates
+  ii <- apply(las@data[, c("X", "Y", "Z")], MARGIN = 1, anyNA)
+  if (any(ii)) {
+    n <- sum(ii)
+    if (drop.missing.coords) {
+      message("Dropping ", n, " point(s) with missing coordinates")
+      las@data <- las@data[!ii, ]
+      NEED_HEADER_UPDATE <- TRUE
+
+    } else {
+      warning(n, " point(s) have missing coordinates but are not being dropped", immediate. = TRUE)
+    }
   }
 
   # Normalize point heights relative to ground level if required
@@ -492,11 +520,13 @@ prepare_tile <- function(path,
       # Treat threshold value as height below zero
       ii <- las@data$Z < -abs(drop.negative.threshold)
       las@data <- las@data[!ii, ]
+      NEED_HEADER_UPDATE <- TRUE
     }
 
     # Set the normalized height of all ground points to zero
     ii <- las@data$Classification %in% treat.as.ground
     las@data$Z[ii] <- 0
+    NEED_HEADER_UPDATE <- TRUE
   }
 
   # Add flight line indices based on GPS times for points
@@ -505,11 +535,15 @@ prepare_tile <- function(path,
   if (min.points > 0) las <- filter_flightlines(las, min.points)
 
   # Add the flightlineID column to the header
-  las <- add_lasattribute(las, name = "flightlineID", desc = "Flight line ID")
+  las <- lidR::add_lasattribute(las, name = "flightlineID", desc = "Flight line ID")
 
   if (length(unz.files) > 0) unlink(unz.files)
 
-  las
+  if (NEED_HEADER_UPDATE) {
+    update_tile_header(las)
+  } else {
+    las
+  }
 }
 
 
