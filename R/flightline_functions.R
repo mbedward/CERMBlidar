@@ -322,8 +322,14 @@ get_flightline_overlaps <- function(polys) {
 #' @param n_sample_points The number of points to sample from the LiDAR point
 #'   cloud.
 #'
+#' @param min_points The minimum number of points that must be in each of the
+#'   ground and vegetation classes for a ratio to be calculated. This is to
+#'   guard against cases where there are no ground points, and also to avoid
+#'   bias assessment on unreliable ratios based on only a small number of
+#'   vegetation points. The default is 100 points.
+#'
 #' @param bias_threshold The threshold value, above which bias is considered to
-#'   be present. Default value is 2. See Details for more explanation.
+#'   be present. Default value is 1.5. See Details for more explanation.
 #'
 #' @param water_as_ground If \code{TRUE} (default), treat class 9 (water) points as
 #'   ground points when calculating vegetation class ratio values.
@@ -366,9 +372,10 @@ get_flightline_overlaps <- function(polys) {
 check_overlap_bias <- function(las,
                                ov_polys,
                                nsample_points = 1e5,
-                               bias_threshold = 2.0,
+                               bias_threshold = 1.5,
                                water_as_ground = TRUE,
-                               min_polygon_area = 1000) {
+                               min_polygon_area = 1000,
+                               min_points = 100) {
 
   if (water_as_ground) {
     ground_classes <- c(2, 9)
@@ -427,7 +434,18 @@ check_overlap_bias <- function(las,
   fn_ratio <- function(Classification, npoints) {
     iground <- Classification %in% ground_classes
 
+    # Initialize vector of ratio values
     ratio <- rep(1, length(Classification))
+
+    # Total ground points (e.g. ground + water)
+    Nground <- sum(npoints[iground])
+
+    if (Nground < min_points) {
+      # Not enough ground points for comparison. Return
+      # the initial vector of 1s
+      return(ratio)
+    }
+
     ratio[!iground] <- npoints[!iground] / sum(npoints[iground])
 
     ratio

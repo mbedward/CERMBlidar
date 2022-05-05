@@ -8,9 +8,10 @@ check_overlap_bias(
   las,
   ov_polys,
   nsample_points = 1e+05,
-  bias_threshold = 2,
+  bias_threshold = 1.5,
   water_as_ground = TRUE,
-  min_polygon_area = 1000
+  min_polygon_area = 1000,
+  min_points = 100
 )
 }
 \arguments{
@@ -20,7 +21,7 @@ check_overlap_bias(
 function \code{get_flightline_overlaps}.}
 
 \item{bias_threshold}{The threshold value, above which bias is considered to
-be present. Default value is 2. See Details for more explanation.}
+be present. Default value is 1.5. See Details for more explanation.}
 
 \item{water_as_ground}{If \code{TRUE} (default), treat class 9 (water) points as
 ground points when calculating vegetation class ratio values.}
@@ -30,6 +31,12 @@ intended to remove tiny polygons, e.g. that can result from the
 intersection of complex flight lines. The default value of 1000 assumes that
 map units for both the LAS tile and the derived polygon layer (which should
 be in the same map projection) are metres.}
+
+\item{min_points}{The minimum number of points that must be in each of the
+ground and vegetation classes for a ratio to be calculated. This is to
+guard against cases where there are no ground points, and also to avoid
+bias assessment on unreliable ratios based on only a small number of
+vegetation points. The default is 100 points.}
 
 \item{n_sample_points}{The number of points to sample from the LiDAR point
 cloud.}
