@@ -161,6 +161,10 @@ remove_flightline_bias <- function(las,
   # consistent orientation
   fline.dat <- get_flightline_info(las, min.points = 0, ...)
 
+  # Only consider classes that actually appear in the tile
+  ii <- classes %in% las@data$Classification
+  classes <- classes[ii]
+
   # Check that each flight line has sufficient points in the classes being
   # considered
   x <- table(las@data[, c("flightlineID", "Classification")])[, as.character(classes), drop=FALSE]
@@ -348,6 +352,10 @@ remove_flightline_bias <- function(las,
                                    classes,
                                    res,
                                    min.points) {
+
+  # Make sure that we only consider classes that actually appear in the tile
+  ii <- classes %in% las@data$Classification
+  classes <- classes[ii]
 
   # Only consider flight lines with sufficient points in the classes being
   # considered. Any with less points are ignored (ie. their points are retained).

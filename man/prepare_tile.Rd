@@ -32,7 +32,7 @@ ground level. Can be one of the following:
   \item{A logical value}{If \code{TRUE}, relative ground level is estimated from
     an elevation surface fitted by triangulation to ground points in the
     LAS file. This is equivalent to calling the
-    \code{\link[lidR]{normalize_height}} function directly with the argument
+    \code{\link[lidR]{normalize}} function directly with the argument
     \code{algorithm = tin()}. If \code{FALSE}, point heights will not be
     normalized.}
   \item{An algorithm name as a character string}{Point heights will be
