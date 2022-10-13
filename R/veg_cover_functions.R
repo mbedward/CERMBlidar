@@ -191,6 +191,114 @@ get_cover_quantiles <- function(rcounts,
 }
 
 
+#' Bayesian credible interval for difference in cover values
+#'
+#' This function estimates vegetation cover difference based on two point count
+#' rasters, e.g. as returned by \code{\link{get_stratum_counts}}. Each raster
+#' should have two or more bands, with the first band representing ground point
+#' counts and subsequent bands representing point counts for vegetation strata.
+#' Typical usage is where the point count rasters are derived from LiDAR data
+#' for the same area at two different times, and we wish to report a bounded
+#' estimate of vegetation cover difference between the two times, where the bounds
+#' take into account the point density of the LiDAR data at each of the two
+#' times. Difference results are summarized as selected quantiles, specified via
+#' the \code{probs} argument. These quantiles are calculated using the function
+#' \code{\link[tolerance]{qdiffprop}} from the \code{tolerance} package.
+#'
+#' To illustrate the method, consider a single horizontal pixel location in each
+#' of the point count rasters \code{r0} and \code{r1}, where we want to estimate
+#' the vegetation cover difference, i.e. the change in cover for r1 compared to
+#' r0, for a given stratum \code{s}. A naive mean cover estimate for the pixel
+#' in each raster could be calculated as the ratio of the stratum point count,
+#' i.e. number of LiDAR points from within the height range of the stratum, to
+#' the total number of LiDAR points from ground level to the upper height of the
+#' stratum. This is the calculation performed by function
+#' \code{\link{get_stratum_cover}}. An estimate of cover difference is then
+#' simply the cover derived from \code{r0} minus that derived from \code{r1}.
+#' However, a problem with this approach is that it gives no indication of how
+#' much certainty we can have in either the mean cover estimates, or the
+#' estimate of difference, since it ignores the number of LiDAR points in each
+#' set. A cover value of 25 percent based on 4 stratum points out of 16 total points
+#' represents a much less precise estimate than one based on 20 stratum points
+#' out of 80 total points.
+#'
+#' A more robust alternative is to consider the distribution of true stratum
+#' cover values that could have generated the observed point counts. If we
+#' assume, hopefully without departing from reality too much, that LiDAR points
+#' are located randomly within the pixel, we can treat the detection of
+#' vegetation as a binomial sampling process. The count of stratum points is
+#' taken as a draw from a \code{binomial(n, p)} distribution where \code{n} is
+#' total number of LiDAR points from ground level to the top of the stratum; and
+#' \code{p} is the probability of a point being a return from vegetation. Under
+#' this model, \code{p} represents the actual projected foliage cover and our
+#' interest lies in the distribution of \code{p} values that feasibly result in
+#' the observed point counts. This will follow a beta distribution with
+#' parameters: \code{shape1 = 1 + stratum point count} and
+#' \code{shape2 = 1 + total point count - stratum point count}.
+#' The distribution of vegetation cover change can then be derived as the
+#' difference between the beta distribution based on raster \code{r1} and that based
+#' on raster \code{r0}.
+#'
+#' @param r0 First point count raster (e.g. earlier time). This should be a
+#'   raster with integer cell values.
+#'
+#' @param r1 Second point count raster (e.g. later time). This should be a
+#'   raster with integer cell values and the same number of bands as raster
+#'   \code{r0}.
+#'
+#' @param probs Quantiles for cover difference. The default is to return
+#'   quantiles for the median and the 90\% credible interval.
+#'
+#'
+#' @export
+#'
+get_cover_difference <- function(r0, r1, probs = c(0.05, 0.5, 0.95)) {
+
+  r0 <- .as_spat_raster(r0)
+  r1 <- .as_spat_raster(r1)
+
+  # Point count rasters should both have integer cell values and the same number of bands (> 1)
+  nbands <- terra::nlyr(r0)
+  if (nbands < 2) {
+    stop("Both point count rasters must have at least 2 bands")
+  }
+
+  n1 <- terra::nlyr(r1)
+  if (n1 != nbands) {
+    msg <- glue::glue("Point count rasters differ in number of bands: {nbands} versus {n1}")
+    stop(msg)
+  }
+
+  .sanity_check_point_counts(r0, label = "raster r0")
+  .sanity_check_point_counts(r1, label = "raster r1")
+
+  rsum0 <- terra::subset(r0, 1)
+  rsum1 <- terra::subset(r1, 1)
+
+  fn <- function(r) {
+    tolerance::qdiffprop(0.5, k1 = r[1], k2 = r[2], n1 = r[3], n2 = r[4])
+  }
+
+  res <- lapply(2:nbands, function(iband) {
+    rband0 <- terra::subset(r0, iband)
+    rsum0 <<- rsum0 + rband0
+
+    rband1 <- terra::subset(r1, iband)
+    rsum1 <<- rsum1 + rband1
+
+    r <- c(rband0, rband1, rsum0, rsum1)
+    rx0 <- terra::app(r, fn)
+
+    names(rx0) <- sprintf("%s_q_%g", names(r0)[iband], probs)
+
+  })
+
+  # Merge list of result layers into a single SpatRaster
+  # and return
+  terra::rast(res)
+}
+
+
 # Private helper to check that a raster looks like valid point count data.
 # Input must be a terra::SpatRaster object.
 #
