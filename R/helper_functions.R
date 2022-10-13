@@ -26,7 +26,7 @@
     if (!is.logical(x)) {
       stop("Expected a boolean value for ", nm)
     }
-    as_scalar(x)
+    .as_scalar(x)
   }
 }
 

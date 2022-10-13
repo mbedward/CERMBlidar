@@ -152,7 +152,7 @@ get_cover_quantiles <- function(rcounts,
     res <- numeric(nout)
     k <- 1
 
-    prior_params <- beta_prior[[istratum]]
+    prior_params <- beta_prior[istratum, ]
 
     if (mle) {
       res[1] <- ifelse(x[2] == 0, NA, x[1] / x[2])
