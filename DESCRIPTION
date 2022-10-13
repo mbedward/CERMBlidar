@@ -37,6 +37,5 @@ Imports: Rcpp,
   sp (>= 1.5-0),
   stringr,
   raster (>= 3.5-29),
-  terra (>= 1.6-17),
-  tolerance (>= 2.0.0.9999)
+  terra (>= 1.6-17)
 VignetteBuilder: knitr
