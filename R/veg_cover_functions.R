@@ -1,34 +1,38 @@
-#' Calculate selected quantiles for stratum vegetation cover
+#' Calculate quantiles of stratum vegetation cover based on LiDAR point counts
 #'
-#' This function is an alternative to the simple \code{get_stratum_cover}
-#' function that takes into account the LiDAR point density. It treats the
-#' estimation of stratum cover as a binomial process, where stratum points are
-#' 'successes' while points from ground level and any lower strata are
-#' 'failures'. Based on this, selected quantiles for the probability of success,
-#' which is equivalent to vegetation cover, can be calculated from a beta
-#' distribution. This is essentially a Bayesian statistical approach to cover
-#' estimation. Compared to the simple maximum likelihood calculation performed
-#' by the \code{get_stratum_cover} function, it provides a readily interpretable
-#' measure of precision for vegetation cover estimates.
+#' This function takes a multi-band raster of LiDAR point counts for ground
+#' level and vegetation strata, arranged in increasing height order (i.e. ground
+#' is band 1), and returns a raster of vegetation cover estimates for strata.
+#' Estimates are based on a Bayesian approach, where the detection of stratum
+#' vegetation is viewed as a binomial sampling process. LiDAR points (i.e.
+#' discrete returns) from a stratum are treated as 'successes' while points from
+#' ground level and any lower strata are 'failures'. Under this model, the
+#' binomial probability of success is an estimator of vegetation cover, while
+#' the degree of certainty about the estimate will depend on the LiDAR point
+#' density. Selected quantiles for estimated cover are returned as raster bands
+#' for each stratum. The default is to calculate median cover and the central
+#' 90\% bounds (5\%, 50\% and 95\% quantiles) for each stratum. Optionally, the
+#' maximum likelihood estimate of mean cover can also be returned.
 #'
-#' If we view the detection of vegetation within a stratum via discrete LiDAR returns
-#' as a binomial sampling process, then we can make use of the relationship
-#' between the binomial and beta distributions. For a given pixel, if we have
-#' \code{n} returns from vegetation within a stratum out of a total of \code{N} returns
-#' from that stratum or lower (including ground level), then the distribution of
-#' the possible vegetation cover values for the stratum that could result in the
-#' observed points counts will follow a beta distribution. For the baseline
-#' no-data case (ie. no LiDAR returns from the stratum or below, perhaps because
-#' higher strata blocked all LiDAR pulses), it is reasonable to depict the
-#' possible cover distribution as uniform between 0 and 1, i.e. with no data we have no
-#' reason to prefer any cover value over any other. This baseline can be
-#' represented as a \code{beta(1, 1)} distribution which, for quantile
-#' calculations, we refer to as the \emph{Bayesian prior distribution} of cover
-#' values. Most of the time this is probably what you want to use. We use the
-#' LiDAR data within a pixel to \emph{update} our expectation of stratum cover
-#' from the flat prior \code{beta(1, 1)} distribution to a \code{beta(1+n,
-#' 1+n-N)} distribution. We can then summarize this distribution via selected
-#' quantiles which can be output as raster layers.
+#' If we view the detection of vegetation within a stratum via discrete LiDAR
+#' returns as a binomial sampling process, then we can make use of the
+#' relationship between the binomial and beta distributions. For a given pixel,
+#' if we have \code{n} returns from vegetation within a stratum out of a total
+#' of \code{N} returns from that stratum or lower (including ground level), then
+#' the distribution of the possible vegetation cover values for the stratum that
+#' could result in the observed points counts will follow a beta distribution.
+#' For the baseline no-data case (ie. no LiDAR returns from the stratum or
+#' below, perhaps because higher strata blocked all LiDAR pulses), it is
+#' reasonable to depict the possible cover distribution as uniform between 0 and
+#' 1, i.e. with no data we have no reason to prefer any cover value over any
+#' other. This baseline can be represented as a \code{beta(1, 1)} distribution
+#' which, for quantile calculations, we refer to as the \emph{Bayesian prior
+#' distribution} of cover values. Most of the time this is probably what you
+#' want to use. We use the LiDAR data within a pixel to \emph{update} our
+#' expectation of stratum cover from the flat prior \code{beta(1, 1)}
+#' distribution to a \code{beta(1+n, 1+n-N)} distribution. We can then summarize
+#' this distribution via selected quantiles which can be output as raster
+#' layers.
 #'
 #' Sometimes, it might be preferable to adopt something other than a uniform
 #' prior expectation for vegetation cover. For example, from previous studies
@@ -54,7 +58,9 @@
 #'   vegetation stratum plus a band for the ground layer. Normally, this will be
 #'   a \code{terra} package \code{SpatRaster} object generated by function
 #'   \code{get_stratum_counts()}, but it may also be a \code{RasterStack} or
-#'   \code{RasterBrick} (\code{raster} package) object.
+#'   \code{RasterBrick} (\code{raster} package) object. \strong{Important:} the
+#'   bands must be arranged in increasing height order, i.e. ground layer, then
+#'   understorey layer(s), then overstorey layer(s).
 #'
 #' @param probs A numeric vector of one or more probability values specifying
 #'   the quantiles of vegetation cover.  The default \code{c(0.05, 0.5, 0.95)}
@@ -94,10 +100,13 @@
 #'
 #' @return A \code{SpatRast} (\code{terra} package) raster object with a layer
 #'   for each requested quantile within each stratum. For example, calculating
-#'   the default median plus 90\% bounds (0.05 and 0.95 quantiles) for 5 vegetation
-#'   strata would return a raster object with 15 layers. Layer names have the
-#'   form \code{stratum_q_prob}, e.g. \code{'TallShrub_q_0.5'} for the median
-#'   (50\%) quantile.
+#'   the default median plus 90\% bounds (0.05 and 0.95 quantiles) for 5
+#'   vegetation strata would return a raster object with 15 layers. Layers are
+#'   arranged by stratum, then by quantile. Layer names have the form
+#'   \code{stratum_q_prob}, e.g. \code{'TallShrub_q_0.5'} for the median (50\%)
+#'   quantile. If the maximum likelihood cover estimate has been requested
+#'   (\code{mle=TRUE}), this will appear before any quantile layers for each
+#'   stratum with a name of the form \code{stratum_mle}.
 #'
 #' @export
 #'
@@ -145,8 +154,7 @@ get_cover_quantiles <- function(rcounts,
   }
   beta_prior <- do.call(rbind, beta_prior)
 
-  rsum <- terra::subset(rcounts, 1)
-
+  # Worker function for cover calculations
   fn <- function(x, istratum) {
     nout <- mle + length(probs)
     res <- numeric(nout)
@@ -166,12 +174,20 @@ get_cover_quantiles <- function(rcounts,
     res
   }
 
+  # Initialize a raster of total point counts with the ground layer
+  rsum <- terra::subset(rcounts, 1)
+
+  # For each veg stratum band:
+  #   - increment total point count
+  #   - call worker function to calculate quantiles and/or MLE
+  #
   res <- lapply(2:nbands, function(iband) {
     rband <- terra::subset(rcounts, iband)
     rsum <<- rsum + rband
 
     rres <- terra::app(c(rband, rsum), fn, istratum=iband-1)
 
+    # Set names for result layer(s) for this stratum
     nout_layers <- mle + length(probs)
     k <- 1
     if (mle) {
