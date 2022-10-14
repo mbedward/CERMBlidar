@@ -1,34 +1,38 @@
-#' Calculate selected quantiles for stratum vegetation cover
+#' Calculate quantiles of stratum vegetation cover based on LiDAR point counts
 #'
-#' This function is an alternative to the simple \code{get_stratum_cover}
-#' function that takes into account the LiDAR point density. It treats the
-#' estimation of stratum cover as a binomial process, where stratum points are
-#' 'successes' while points from ground level and any lower strata are
-#' 'failures'. Based on this, selected quantiles for the probability of success,
-#' which is equivalent to vegetation cover, can be calculated from a beta
-#' distribution. This is essentially a Bayesian statistical approach to cover
-#' estimation. Compared to the simple maximum likelihood calculation performed
-#' by the \code{get_stratum_cover} function, it provides a readily interpretable
-#' measure of precision for vegetation cover estimates.
+#' This function takes a multi-band raster of LiDAR point counts for ground
+#' level and vegetation strata, arranged in increasing height order (i.e. ground
+#' is band 1), and returns a raster of vegetation cover estimates for strata.
+#' Estimates are based on a Bayesian approach, where the detection of stratum
+#' vegetation is viewed as a binomial sampling process. LiDAR points (i.e.
+#' discrete returns) from a stratum are treated as 'successes' while points from
+#' ground level and any lower strata are 'failures'. Under this model, the
+#' binomial probability of success is an estimator of vegetation cover, while
+#' the degree of certainty about the estimate will depend on the LiDAR point
+#' density. Selected quantiles for estimated cover are returned as raster bands
+#' for each stratum. The default is to calculate median cover and the central
+#' 90\% bounds (5\%, 50\% and 95\% quantiles) for each stratum. Optionally, the
+#' maximum likelihood estimate of mean cover can also be returned.
 #'
-#' If we view the detection of vegetation within a stratum via discrete LiDAR returns
-#' as a binomial sampling process, then we can make use of the relationship
-#' between the binomial and beta distributions. For a given pixel, if we have
-#' \code{n} returns from vegetation within a stratum out of a total of \code{N} returns
-#' from that stratum or lower (including ground level), then the distribution of
-#' the possible vegetation cover values for the stratum that could result in the
-#' observed points counts will follow a beta distribution. For the baseline
-#' no-data case (ie. no LiDAR returns from the stratum or below, perhaps because
-#' higher strata blocked all LiDAR pulses), it is reasonable to depict the
-#' possible cover distribution as uniform between 0 and 1, i.e. with no data we have no
-#' reason to prefer any cover value over any other. This baseline can be
-#' represented as a \code{beta(1, 1)} distribution which, for quantile
-#' calculations, we refer to as the \emph{Bayesian prior distribution} of cover
-#' values. Most of the time this is probably what you want to use. We use the
-#' LiDAR data within a pixel to \emph{update} our expectation of stratum cover
-#' from the flat prior \code{beta(1, 1)} distribution to a \code{beta(1+n,
-#' 1+n-N)} distribution. We can then summarize this distribution via selected
-#' quantiles which can be output as raster layers.
+#' If we view the detection of vegetation within a stratum via discrete LiDAR
+#' returns as a binomial sampling process, then we can make use of the
+#' relationship between the binomial and beta distributions. For a given pixel,
+#' if we have \code{n} returns from vegetation within a stratum out of a total
+#' of \code{N} returns from that stratum or lower (including ground level), then
+#' the distribution of the possible vegetation cover values for the stratum that
+#' could result in the observed points counts will follow a beta distribution.
+#' For the baseline no-data case (ie. no LiDAR returns from the stratum or
+#' below, perhaps because higher strata blocked all LiDAR pulses), it is
+#' reasonable to depict the possible cover distribution as uniform between 0 and
+#' 1, i.e. with no data we have no reason to prefer any cover value over any
+#' other. This baseline can be represented as a \code{beta(1, 1)} distribution
+#' which, for quantile calculations, we refer to as the \emph{Bayesian prior
+#' distribution} of cover values. Most of the time this is probably what you
+#' want to use. We use the LiDAR data within a pixel to \emph{update} our
+#' expectation of stratum cover from the flat prior \code{beta(1, 1)}
+#' distribution to a \code{beta(1+n, 1+n-N)} distribution. We can then summarize
+#' this distribution via selected quantiles which can be output as raster
+#' layers.
 #'
 #' Sometimes, it might be preferable to adopt something other than a uniform
 #' prior expectation for vegetation cover. For example, from previous studies
@@ -54,7 +58,9 @@
 #'   vegetation stratum plus a band for the ground layer. Normally, this will be
 #'   a \code{terra} package \code{SpatRaster} object generated by function
 #'   \code{get_stratum_counts()}, but it may also be a \code{RasterStack} or
-#'   \code{RasterBrick} (\code{raster} package) object.
+#'   \code{RasterBrick} (\code{raster} package) object. \strong{Important:} the
+#'   bands must be arranged in increasing height order, i.e. ground layer, then
+#'   understorey layer(s), then overstorey layer(s).
 #'
 #' @param probs A numeric vector of one or more probability values specifying
 #'   the quantiles of vegetation cover.  The default \code{c(0.05, 0.5, 0.95)}
@@ -94,10 +100,13 @@
 #'
 #' @return A \code{SpatRast} (\code{terra} package) raster object with a layer
 #'   for each requested quantile within each stratum. For example, calculating
-#'   the default median plus 90\% bounds (0.05 and 0.95 quantiles) for 5 vegetation
-#'   strata would return a raster object with 15 layers. Layer names have the
-#'   form \code{stratum_q_prob}, e.g. \code{'TallShrub_q_0.5'} for the median
-#'   (50\%) quantile.
+#'   the default median plus 90\% bounds (0.05 and 0.95 quantiles) for 5
+#'   vegetation strata would return a raster object with 15 layers. Layers are
+#'   arranged by stratum, then by quantile. Layer names have the form
+#'   \code{stratum_q_prob}, e.g. \code{'TallShrub_q_0.5'} for the median (50\%)
+#'   quantile. If the maximum likelihood cover estimate has been requested
+#'   (\code{mle=TRUE}), this will appear before any quantile layers for each
+#'   stratum with a name of the form \code{stratum_mle}.
 #'
 #' @export
 #'
@@ -145,8 +154,7 @@ get_cover_quantiles <- function(rcounts,
   }
   beta_prior <- do.call(rbind, beta_prior)
 
-  rsum <- terra::subset(rcounts, 1)
-
+  # Worker function for cover calculations
   fn <- function(x, istratum) {
     nout <- mle + length(probs)
     res <- numeric(nout)
@@ -166,12 +174,20 @@ get_cover_quantiles <- function(rcounts,
     res
   }
 
+  # Initialize a raster of total point counts with the ground layer
+  rsum <- terra::subset(rcounts, 1)
+
+  # For each veg stratum band:
+  #   - increment total point count
+  #   - call worker function to calculate quantiles and/or MLE
+  #
   res <- lapply(2:nbands, function(iband) {
     rband <- terra::subset(rcounts, iband)
     rsum <<- rsum + rband
 
     rres <- terra::app(c(rband, rsum), fn, istratum=iband-1)
 
+    # Set names for result layer(s) for this stratum
     nout_layers <- mle + length(probs)
     k <- 1
     if (mle) {
@@ -191,112 +207,256 @@ get_cover_quantiles <- function(rcounts,
 }
 
 
-#' Bayesian credible interval for difference in cover values
+#' Calculate quantiles for change in vegetation cover between two times
 #'
-#' This function estimates vegetation cover difference based on two point count
-#' rasters, e.g. as returned by \code{\link{get_stratum_counts}}. Each raster
-#' should have two or more bands, with the first band representing ground point
-#' counts and subsequent bands representing point counts for vegetation strata.
-#' Typical usage is where the point count rasters are derived from LiDAR data
-#' for the same area at two different times, and we wish to report a bounded
-#' estimate of vegetation cover difference between the two times, where the bounds
-#' take into account the point density of the LiDAR data at each of the two
-#' times. Difference results are summarized as selected quantiles, specified via
-#' the \code{probs} argument. These quantiles are calculated using the function
-#' \code{\link[tolerance]{qdiffprop}} from the \code{tolerance} package.
+#' This function uses the same approach for Bayesian estimation of vegetation
+#' cover as described for function \code{\link{get_cover_quantiles}}, but
+#' applied to two rasters representing LiDAR point counts for the same area at
+#' two different times. It returns a raster where the values in each band are
+#' selected quantiles of the change in vegetation cover between time 1 and time
+#' 2. The default is to calculate the median and the central 90\% bounds (i.e.
+#' 5\%, 50\% and 95\% quantiles) for cover change in each stratum. Each input
+#' raster should have two or more bands, with the first band representing ground
+#' point counts and subsequent bands representing point counts for vegetation
+#' strata arranged in increasing height order (i.e. ground is band 1).
 #'
-#' To illustrate the method, consider a single horizontal pixel location in each
-#' of the point count rasters \code{r0} and \code{r1}, where we want to estimate
-#' the vegetation cover difference, i.e. the change in cover for r1 compared to
-#' r0, for a given stratum \code{s}. A naive mean cover estimate for the pixel
-#' in each raster could be calculated as the ratio of the stratum point count,
-#' i.e. number of LiDAR points from within the height range of the stratum, to
-#' the total number of LiDAR points from ground level to the upper height of the
-#' stratum. This is the calculation performed by function
-#' \code{\link{get_stratum_cover}}. An estimate of cover difference is then
-#' simply the cover derived from \code{r0} minus that derived from \code{r1}.
-#' However, a problem with this approach is that it gives no indication of how
-#' much certainty we can have in either the mean cover estimates, or the
-#' estimate of difference, since it ignores the number of LiDAR points in each
-#' set. A cover value of 25 percent based on 4 stratum points out of 16 total points
-#' represents a much less precise estimate than one based on 20 stratum points
-#' out of 80 total points.
+#' As described for function \code{\link{get_cover_quantiles}}, the estimation
+#' of stratum vegetation cover is based on treating the discrete LiDAR returns
+#' as a binomial sampling process, where the probability of a return from
+#' vegetation in the stratum being considered corresponds to vegetation cover.
+#' Under this model, the distribution of possible cover values that could have
+#' generated the observed point counts for a pixel will follow a beta
+#' distribution. Change in vegetation cover can therefore be estimated by taking
+#' the distribution of differences between the beta distribution for time 2
+#' minus that for time 1.
 #'
-#' A more robust alternative is to consider the distribution of true stratum
-#' cover values that could have generated the observed point counts. If we
-#' assume, hopefully without departing from reality too much, that LiDAR points
-#' are located randomly within the pixel, we can treat the detection of
-#' vegetation as a binomial sampling process. The count of stratum points is
-#' taken as a draw from a \code{binomial(n, p)} distribution where \code{n} is
-#' total number of LiDAR points from ground level to the top of the stratum; and
-#' \code{p} is the probability of a point being a return from vegetation. Under
-#' this model, \code{p} represents the actual projected foliage cover and our
-#' interest lies in the distribution of \code{p} values that feasibly result in
-#' the observed point counts. This will follow a beta distribution with
-#' parameters: \code{shape1 = 1 + stratum point count} and
-#' \code{shape2 = 1 + total point count - stratum point count}.
-#' The distribution of vegetation cover change can then be derived as the
-#' difference between the beta distribution based on raster \code{r1} and that based
-#' on raster \code{r0}.
+#' @param rcounts0 Point counts raster for the first (earlier) time. Normally,
+#'   this will be a \code{terra} package \code{SpatRaster} object generated by
+#'   function \code{get_stratum_counts()}, but it may also be a
+#'   \code{RasterStack} or \code{RasterBrick} (\code{raster} package) object.
+#'   \strong{Important:} the bands must be arranged in increasing height order,
+#'   i.e. ground layer, then understorey layer(s), then overstorey layer(s).
 #'
-#' @param r0 First point count raster (e.g. earlier time). This should be a
-#'   raster with integer cell values.
+#' @param rcounts1 Point counts raster for the second (later) time. This must
+#'   have the same dimensions (rows, columns and number of bands) as
+#'   \code{rcounts0}. Generally it will also have the same spatial bounds, but
+#'   this is not checked to allow the function to be used for other types of
+#'   comparisons (e.g. space for time substitution).
 #'
-#' @param r1 Second point count raster (e.g. later time). This should be a
-#'   raster with integer cell values and the same number of bands as raster
-#'   \code{r0}.
+#' @param probs A numeric vector of one or more probability values specifying
+#'   the quantiles of vegetation cover change to calculate.  The default
+#'   \code{c(0.05, 0.5, 0.95)} returns quantiles for the median and the central
+#'   90\% interval of cover change.
 #'
-#' @param probs Quantiles for cover difference. The default is to return
-#'   quantiles for the median and the 90\% credible interval.
+#' @param backgroundNA Controls what pixel value should be returned for a
+#'   stratum when there are no LiDAR points for the stratum , any lower strata
+#'   or ground level in one or both point counts rasters. If set to \code{TRUE},
+#'   such cases will have missing (\code{NA}) pixel values for all quantiles for
+#'   the stratum. If \code{FALSE} (the default), quantiles for change values
+#'   will be based on the prior beta distribution.
+#'
+#' @param beta_prior (\strong{Expert use only!}) Either a numeric vector
+#'   of two values defining the prior beta distribution to use for all strata,
+#'   or a named list of two-element numeric vectors where the element names
+#'   match (case-insensitive) layer names for vegetation strata in the input
+#'   point count raster. The default is \code{c(1,1)} for a \code{beta(1,1)}
+#'   distribution which is equivalent to a uniform distribution on the (0,1)
+#'   interval for all strata. This is probably what you want unless (a) you
+#'   really know what you are doing and (b) there are particular reasons, i.e.
+#'   previous studies or expert knowledge, to expect cover values for one or
+#'   more strata to follow alternative distributions. See the Details section
+#'   of function \code{get_cover_quantiles) for further explanation.
+#'
+#' @return A \code{SpatRast} (\code{terra} package) raster object with a layer
+#'   for each requested quantile of vegetation cover change within each stratum.
+#'   For example, calculating the default median plus 90\% bounds (0.05 and 0.95
+#'   quantiles) of cover change for 5 vegetation strata would return a raster
+#'   object with 15 layers. Layers are arranged by stratum, then by quantile.
+#'   Layer names have the form \code{stratum_dq_prob}, e.g.
+#'   \code{'TallShrub_dq_0.5'} for the median (50\%) quantile of cover change.
 #'
 #'
 #' @export
 #'
-get_cover_difference <- function(r0, r1, probs = c(0.05, 0.5, 0.95)) {
+get_cover_difference <- function(rcounts0,
+                                 rcounts1,
+                                 probs = c(0.05, 0.5, 0.95),
+                                 backgroundNA = FALSE,
+                                 beta_prior = c(1, 1)) {
 
-  r0 <- .as_spat_raster(r0)
-  r1 <- .as_spat_raster(r1)
+  rcounts0 <- .as_spat_raster(rcounts0)
+  .sanity_check_point_counts(rcounts0)
 
-  # Point count rasters should both have integer cell values and the same number of bands (> 1)
-  nbands <- terra::nlyr(r0)
+  rcounts1 <- .as_spat_raster(rcounts1)
+  .sanity_check_point_counts(rcounts1)
+
+  if (!is.numeric(probs)) stop("Argument probs should be a numeric vector or NULL")
+  if (!all(probs > 0 & probs < 1)) stop("Requested quantile (probs) must all be >0 and <1")
+
+  probs <- sort(unique(probs))
+
+  backgroundNA <- .as_boolean(backgroundNA)
+
+  nbands <- terra::nlyr(rcounts0)
   if (nbands < 2) {
-    stop("Both point count rasters must have at least 2 bands")
-  }
+    msg <- glue::glue("Both point count rasters must have at least two layers
+                       with the first layer being ground level point counts and
+                       subsequent layers being stratum point counts in order of
+                       increasing height.")
 
-  n1 <- terra::nlyr(r1)
-  if (n1 != nbands) {
-    msg <- glue::glue("Point count rasters differ in number of bands: {nbands} versus {n1}")
     stop(msg)
   }
 
-  .sanity_check_point_counts(r0, label = "raster r0")
-  .sanity_check_point_counts(r1, label = "raster r1")
-
-  rsum0 <- terra::subset(r0, 1)
-  rsum1 <- terra::subset(r1, 1)
-
-  fn <- function(r) {
-    tolerance::qdiffprop(0.5, k1 = r[1], k2 = r[2], n1 = r[3], n2 = r[4])
+  if (terra::nlyr(rcounts1) != nbands) {
+    stop("Both point count rasters must have the same number of bands")
   }
 
-  res <- lapply(2:nbands, function(iband) {
-    rband0 <- terra::subset(r0, iband)
-    rsum0 <<- rsum0 + rband0
+  if (terra::ncol(rcounts0) != terra::ncol(rcounts1) ||
+      terra::nrow(rcounts0) != terra::nrow(rcounts1)) {
+    stop("Both point count rasters must have the same number of rows and columns")
+  }
 
-    rband1 <- terra::subset(r1, iband)
+  # Check the beta_prior argument
+  .sanity_check_beta_prior(beta_prior, nbands)
+
+  # Convert the beta_prior argument to matrix form.
+  if (is.numeric(beta_prior)) {
+    beta_prior <- lapply(2:nbands, function(...) beta_prior)
+  }
+  beta_prior <- do.call(rbind, beta_prior)
+
+  # Worker function for cover calculations.
+  # Expects input raster 'x' to have four bands in order:
+  #   s0, n0, s1, n1
+  # where s_ is stratum points and n_ is total points.
+  #
+  fn <- function(x, istratum) {
+    prior_params <- beta_prior[istratum, ]
+
+    qdiffbeta(probs,
+              s0 = x[1], n0 = x[2], s1 = x[3], n1 = x[4],
+              beta_prior = beta_prior[istratum, ])
+  }
+
+  # Initialize a raster of total point counts with the ground layer
+  # for each time
+  rsum0 <- terra::subset(rcounts0, 1)
+  rsum1 <- terra::subset(rcounts1, 1)
+
+  # For each veg stratum band:
+  #   - increment total point count
+  #   - call worker function to calculate quantiles and/or MLE
+  #
+  res <- lapply(2:nbands, function(iband) {
+    rband0 <- terra::subset(rcounts0, iband)
+    rband1 <- terra::subset(rcounts1, iband)
+
+    rsum0 <<- rsum0 + rband0
     rsum1 <<- rsum1 + rband1
 
-    r <- c(rband0, rband1, rsum0, rsum1)
-    rx0 <- terra::app(r, fn)
+    rres <- terra::app(c(rband0, rsum0, rband1, rsum1), fn, istratum=iband-1)
 
-    names(rx0) <- sprintf("%s_q_%g", names(r0)[iband], probs)
+    # Set names for result layer(s) for this stratum
+    if (length(probs) > 0) {
+      names(rres) <- sprintf("%s_dq_%g", names(rcounts0)[iband], probs)
+    }
 
+    rres
   })
 
   # Merge list of result layers into a single SpatRaster
   # and return
   terra::rast(res)
 }
+
+
+# Private helper function to calculate the density of differences between two
+# independent beta distributions.
+#
+# The differences are computed as f1 - f0 where f0 is beta(a0, b0) and f1 is
+# beta(a1, b1). f0 parameters are based on counts s0 (successes) and n0 (total),
+# while f1 parameters are based on counts s1 and n1. Both distributions use the
+# same beta_prior parameters.
+#
+#
+ddiffbeta <- function(x, s0, n0, s1, n1, beta_prior = c(1,1)) {
+  a0 <- s0 + beta_prior[1]
+  b0 <- n0 - s0 + beta_prior[2]
+
+  a1 <- s1 + beta_prior[1]
+  b1 <- n1 - s1 + beta_prior[2]
+
+  A <- beta(a0, b0)*beta(a1, b1)
+
+  dx <- sapply(x, function(xi) {
+    if (xi < -1 || xi > 1) {
+      NA
+
+    } else if(xi > 0) {
+      beta(a1, b0) * xi^(b0+b1-1) * (1 - xi)^(a1+b0-1) *
+        .F1(b0, a0 + a1 + b0 + b1 - 2, 1 - a0, b0 + a1, 1 - xi, 1 - xi^2)
+
+    } else if (xi < 0) {
+      beta(a0, b1) * (-xi)^(b0+b1-1) * (1 + xi)^(a0+b1-1) *
+        .F1(b1, 1 - a1, a0 + a1 + b0 + b1 - 2, a0 + b1, 1 - xi^2, 1 + xi)
+
+    } else {
+      beta(a0 + a1 - 1, b0 + b1 - 1)
+    }
+  })
+
+  dx / A
+}
+
+
+# Private helper function to calculate probability distribution of differences
+# between two independent beta distributions.
+#
+# The differences are computed as f1 - f0 where f0 is beta(a0, b0) and f1 is
+# beta(a1, b1). f0 parameters are based on counts s0 (successes) and n0 (total),
+# while f1 parameters are based on counts s1 and n1. Both distributions use the
+# same beta_prior parameters.
+#
+pdiffbeta <- function(x, s0, n0, s1, n1, beta_prior = c(1,1)) {
+  sapply(x, function(xi) integrate(ddiffbeta, -1, xi,
+                                   s0=s0, n0=n0, s1=s1, n1=n1, beta_prior=beta_prior)$value)
+}
+
+
+# Private helper function to calculate quantiles of differences between two
+# independent beta distributions.
+#
+# The differences are computed as f1 - f0 where f0 is beta(a0, b0) and f1 is
+# beta(a1, b1). f0 parameters are based on counts s0 (successes) and n0 (total),
+# while f1 parameters are based on counts s1 and n1. Both distributions use the
+# same beta_prior parameters.
+#
+qdiffbeta <- function(p, s0, n0, s1, n1, beta_prior = c(1,1)) {
+  fn <- function(x, px) abs(px - pdiffbeta(x, s0, n0, s1, n1, beta_prior))
+
+  res <- sapply(p, function(pi) {
+    optim(0, fn, pi = pi, method = "Brent", lower = -1, upper = 1)$par
+  })
+
+  res
+}
+
+
+# Private helper to calculate Appell F1 function.
+#
+# Used by function ddiffbeta.
+#
+# Note: all args MUST be length 1 but this is not checked
+#
+.F1 <- function(a, b1, b2, c, z1, z2) {
+  fn <- function(u) {
+    u^(a-1) * (1-u)^(c-a-1) * (1-u*z1)^(-b1) * (1-u*z2)^(-b2)
+  }
+
+  intg <- integrate(fn, 0, 1)$value
+  gamma(c) / (gamma(a) * gamma(c - a)) * intg
+}
+
 
 
 # Private helper to check that a raster looks like valid point count data.
