@@ -137,6 +137,8 @@ get_las_bounds <- function(x, type = c("vec", "wkt", "sfc", "bbox", "terra"), un
         }
       })
     )
+  } else {
+    stop("Argument x should be a LAS object or the path to a LAS file")
   }
 
 
