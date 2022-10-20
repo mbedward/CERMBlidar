@@ -300,8 +300,12 @@ get_cover_quantiles <- function(rcounts,
 #'   (0.05 and 0.95 quantiles) of cover change for 5 vegetation strata would
 #'   return a raster object with 15 layers. Layers are arranged by stratum, then
 #'   by quantile. Layer names have the form \code{stratum_dq_prob}, e.g.
-#'   \code{'TallShrub_dq_0.5'} for the median (50\%) quantile of cover change. If estimating change for a subset of pixels
-#'   specified via the \code{sample}
+#'   \code{'TallShrub_dq_0.5'} for the median (50\%) quantile of cover change.
+#'   If estimating change for a subset of pixels specified via the
+#'   \code{samplelocs} argument, an \code{sf} spatial data frame is returned
+#'   with a row for each sample location and columns for stratum x quantile
+#'   change estimates. Column names have the same form as that described for
+#'   raster band names.
 #'
 #'
 #' @export
@@ -367,12 +371,14 @@ get_cover_difference <- function(rcounts0,
     # Calculating change for sample locations.
     # This will return an 'sf' data frame with a column for each stratum x quantile.
     #
-    .do_cover_difference_cells(rcounts0, rcounts1, samplelocs, probs, backgroundNA, beta_prior, nsim, seed)
+    .do_cover_difference_sample(rcounts0, rcounts1, samplelocs, probs, backgroundNA, beta_prior, nsim, seed)
   }
 }
 
 
-# Helper function to
+# Helper function for get_cover_difference() that estimates change for all cells x strata
+# and returns the results as a raster.
+#
 .do_cover_difference_all <- function(rcounts0, rcounts1, probs, backgroundNA, beta_prior, nsim, seed) {
   # Worker function for cover calculations.
   # Expects input raster 'x' to have four bands in order:
@@ -417,7 +423,11 @@ get_cover_difference <- function(rcounts0,
 }
 
 
-.do_cover_difference_cells <- function(rcounts0, rcounts1, samplelocs, probs, backgroundNA, beta_prior, nsim, seed) {
+# Helper function for get_cover_difference() that estimates change for a subset of cells
+# identified by a set of point features (sf data frame) and returns the results as an
+# sf data frame.
+#
+.do_cover_difference_sample <- function(rcounts0, rcounts1, samplelocs, probs, backgroundNA, beta_prior, nsim, seed) {
   # Both input rasters must have coordinate reference systems defined, although
   # we allow them to be different (e.g. GDA94 vs GDA2020)
   crs0 <- sf::st_crs(rcounts0)

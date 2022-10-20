@@ -81,8 +81,12 @@ If estimating change for all pixels (\code{samplelocs=NULL}), the
   (0.05 and 0.95 quantiles) of cover change for 5 vegetation strata would
   return a raster object with 15 layers. Layers are arranged by stratum, then
   by quantile. Layer names have the form \code{stratum_dq_prob}, e.g.
-  \code{'TallShrub_dq_0.5'} for the median (50\%) quantile of cover change. If estimating change for a subset of pixels
-  specified via the \code{sample}
+  \code{'TallShrub_dq_0.5'} for the median (50\%) quantile of cover change.
+  If estimating change for a subset of pixels specified via the
+  \code{samplelocs} argument, an \code{sf} spatial data frame is returned
+  with a row for each sample location and columns for stratum x quantile
+  change estimates. Column names have the same form as that described for
+  raster band names.
 }
 \description{
 This function uses the same approach for Bayesian estimation of vegetation
