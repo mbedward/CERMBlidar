@@ -8,7 +8,7 @@ get_cover_difference(
   rcounts0,
   rcounts1,
   probs = c(0.05, 0.5, 0.95),
-  sample = NULL,
+  samplelocs = NULL,
   backgroundNA = FALSE,
   beta_prior = c(1, 1),
   nsim = 1e+05,
@@ -34,6 +34,15 @@ the quantiles of vegetation cover change to calculate.  The default
 \code{c(0.05, 0.5, 0.95)} returns quantiles for the median and the central
 90\% interval of cover change.}
 
+\item{samplelocs}{Spatial locations of raster pixels to sample. Can be a
+two-column matrix or data frame of X-Y coordinates, or an \code{sf} data
+frame of point features. Note that the default value (\code{NULL}) will
+result in change estimates being calculated for all pixels. Only do this if
+you have a lot of time on your hands! If providing sample locations as a
+two-column matrix or data frame, the two point count rasters must be in the
+same projection otherwise an error is raised. The projection is then
+assumed to apply to the sample coordinates.}
+
 \item{backgroundNA}{Controls what pixel value should be returned for a
 stratum when there are no LiDAR points for the stratum , any lower strata
 or ground level in one or both point counts rasters. If set to \code{TRUE},
@@ -41,17 +50,19 @@ such cases will have missing (\code{NA}) pixel values for all quantiles for
 the stratum. If \code{FALSE} (the default), quantiles for change values
 will be based on the prior beta distribution.}
 
-\item{beta_prior}{(\strong{Expert use only!}) Either a numeric vector
-of two values defining the prior beta distribution to use for all strata,
-or a named list of two-element numeric vectors where the element names
-match (case-insensitive) layer names for vegetation strata in the input
-point count raster. The default is \code{c(1,1)} for a \code{beta(1,1)}
-distribution which is equivalent to a uniform distribution on the (0,1)
-interval for all strata. This is probably what you want unless (a) you
-really know what you are doing and (b) there are particular reasons, i.e.
-previous studies or expert knowledge, to expect cover values for one or
-more strata to follow alternative distributions. See the Details section
-of function \code{get_cover_quantiles} for further explanation.}
+\item{beta_prior}{(\strong{Expert use only!}) Either a numeric vector of two
+values defining the prior beta distribution to use for all strata, or a
+named list of two-element vectors where names match raster layer names for
+vegetation strata (case-insensitive). The default is \code{c(1,1)} for a
+\code{beta(1,1)} distribution which is equivalent to a uniform distribution
+on the (0,1) interval for all strata. This is probably what you want unless
+(a) you really know what you are doing and (b) there are particular
+reasons, i.e. previous studies or expert knowledge, to expect cover values
+for one or more strata to follow alternative distributions. For the list
+option, the default \code{c(1,1)} prior parameters will be used any strata
+not matched to list element names. The function \code{beta_prior_helper}
+can be used to explore candidate distributions given an expected cover
+value. See the examples and the Details section for further explanation.}
 
 \item{nsim}{Number of iterations for simulating the difference between the
 two beta distributions representing possible cover values at times
@@ -63,15 +74,6 @@ distributions representing possible cover values for a pixel and stratum at
 the two times. This is useful when exactly reproducible results are
 preferred. If \code{NULL} (default), results will vary slightly between
 runs with the same input data.}
-
-\item{samplelocs}{Spatial locations of raster pixels to sample. Can be a
-two-column matrix or data frame of X-Y coordinates, or an \code{sf} data
-frame of point features. Note that the default value (\code{NULL}) will
-result in change estimates being calculated for all pixels. Only do this if
-you have a lot of time on your hands! If providing sample locations as a
-two-column matrix or data frame, the two point count rasters must be in the
-same projection otherwise an error is raised. The projection is then
-assumed to apply to the sample coordinates.}
 }
 \value{
 If estimating change for all pixels (\code{samplelocs=NULL}), the
@@ -116,4 +118,41 @@ distribution. Change in vegetation cover can therefore be estimated by taking
 the distribution of differences between the beta distribution for time 2
 minus that for time 1. This function uses a simulation approach to
 approximate the distribution of differences.
+}
+\examples{
+\dontrun{
+# Given two point count rasters, r0 (earlier time t0) and r1 (later time t1),
+# calculate quantiles for difference in stratum cover at t1 compared to t0.
+#
+# Randomly select 100 pixels and create a set of point features
+library(sf)
+library(terra)
+
+icells <- sample(1:ncells(r0), size = 100)
+xy <- as.data.frame( xyFromCell(icells) )
+xy <- st_as_sf(xy, coords = 1:2)
+
+# Set the coordinate reference system for sample points. This is optional
+# if r0 and r1 are in the same projection.
+st_crs(xy) <- st_crs(r0)
+
+# Quantiles of cover change (time t1 relative to t0) corresponding to
+# median, 50\\% bounds and 90\\% bounds. The result is a data frame with a
+# column for each stratum x quantile.
+#
+probs <- c(0.05, 0.25, 0.5, 0.75, 0.95)
+dat_change <- get_cover_difference(r0, r1, probs, sample = xy, seed = 42)
+
+
+# If the point count rasters are not too large, or you are happy to wait,
+# you can calculate change estimates for all pixels by leaving the
+# sample argument at its default of NULL. In this case, a terra::SpatRaster
+# object is returned with a band for each stratum x quantile.
+#
+r_change <- get_cover_difference(r0, r1, probs, seed = 42)
+}
+
+}
+\seealso{
+\code{\link{get_cover_quantiles}}
 }

@@ -2,6 +2,7 @@
 
 export("%>%")
 export(.min_rectangle)
+export(beta_prior_helper)
 export(check_flightline_orientation)
 export(check_overlap_bias)
 export(check_strata)

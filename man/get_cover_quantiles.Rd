@@ -45,17 +45,19 @@ distribution. Note that if maximum likelihood mean cover estimates are
 specified (via \code{mle=TRUE}) these will always be \code{NA} for any
 pixels without LiDAR data.}
 
-\item{beta_prior}{(\strong{Expert use only!}) Either a numeric vector
-of two values defining the prior beta distribution to use for all strata,
-or a named list of two-element numeric vectors where the element names
-match (case-insensitive) layer names for vegetation strata in the input
-point count raster. The default is \code{c(1,1)} for a \code{beta(1,1)}
-distribution which is equivalent to a uniform distribution on the (0,1)
-interval for all strata. This is probably what you want unless (a) you
-really know what you are doing and (b) there are particular reasons, i.e.
-previous studies or expert knowledge, to expect cover values for one or
-more strata to follow alternative distributions. See the Details section
-for further explanation.}
+\item{beta_prior}{(\strong{Expert use only!}) Either a numeric vector of two
+values defining the prior beta distribution to use for all strata, or a
+named list of two-element vectors where names match raster layer names for
+vegetation strata (case-insensitive). The default is \code{c(1,1)} for a
+\code{beta(1,1)} distribution which is equivalent to a uniform distribution
+on the (0,1) interval for all strata. This is probably what you want unless
+(a) you really know what you are doing and (b) there are particular
+reasons, i.e. previous studies or expert knowledge, to expect cover values
+for one or more strata to follow alternative distributions. For the list
+option, the default \code{c(1,1)} prior parameters will be used any strata
+not matched to list element names. The function \code{beta_prior_helper}
+can be used to explore candidate distributions given an expected cover
+value. See the examples and the Details section for further explanation.}
 }
 \value{
 A \code{SpatRast} (\code{terra} package) raster object with a layer
@@ -122,4 +124,32 @@ returned between ground level and the top of the stratum. This value
 corresponds to the mode of the beta distribution used to calculate quantiles,
 assuming that the default \code{beta(1,1)} prior distribution has been
 specified.
+}
+\examples{
+\dontrun{
+# Estimate quantiles of vegetation cover for each stratum corresponding to
+# 50\\% and 90\\% bounds and the median.
+#
+probs <- c(0.05, 0.25, 0.5, 0.75, 0.95)
+rcover <- get_cover_quantiles(rcounts, probs)
+
+# Alternatively, calculate the maximum likelihood cover estimate for each
+# stratum. Note that this is insensitive to LiDAR point density, i.e. it provides
+# no indication of the uncertainty associated with the estimates.
+#
+rcover_mle <- get_cover_quantiles(rcounts, probs = NULL, mle = TRUE)
+
+# An example of setting 'informed' beta priors for two strata:
+# 'LowShrub' and 'MediumTree', corresponding to an expectation of 25\\% cover
+# for shrubs and 40\\% cover for trees. Note that case is ignored when matching
+# strata names. The default \code{beta(1,1)} prior will be used for other strata.
+#
+beta_prior <- list(lowshrub=c(2,4), mediumtree=c(2,2.5))
+}
+
+}
+\seealso{
+\code{\link{get_cover_difference}}
+
+\code{\link{beta_prior_helper}}
 }

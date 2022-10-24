@@ -86,17 +86,19 @@
 #'   specified (via \code{mle=TRUE}) these will always be \code{NA} for any
 #'   pixels without LiDAR data.
 #'
-#' @param beta_prior (\strong{Expert use only!}) Either a numeric vector
-#'   of two values defining the prior beta distribution to use for all strata,
-#'   or a named list of two-element numeric vectors where the element names
-#'   match (case-insensitive) layer names for vegetation strata in the input
-#'   point count raster. The default is \code{c(1,1)} for a \code{beta(1,1)}
-#'   distribution which is equivalent to a uniform distribution on the (0,1)
-#'   interval for all strata. This is probably what you want unless (a) you
-#'   really know what you are doing and (b) there are particular reasons, i.e.
-#'   previous studies or expert knowledge, to expect cover values for one or
-#'   more strata to follow alternative distributions. See the Details section
-#'   for further explanation.
+#' @param beta_prior (\strong{Expert use only!}) Either a numeric vector of two
+#'   values defining the prior beta distribution to use for all strata, or a
+#'   named list of two-element vectors where names match raster layer names for
+#'   vegetation strata (case-insensitive). The default is \code{c(1,1)} for a
+#'   \code{beta(1,1)} distribution which is equivalent to a uniform distribution
+#'   on the (0,1) interval for all strata. This is probably what you want unless
+#'   (a) you really know what you are doing and (b) there are particular
+#'   reasons, i.e. previous studies or expert knowledge, to expect cover values
+#'   for one or more strata to follow alternative distributions. For the list
+#'   option, the default \code{c(1,1)} prior parameters will be used any strata
+#'   not matched to list element names. The function \code{beta_prior_helper}
+#'   can be used to explore candidate distributions given an expected cover
+#'   value. See the examples and the Details section for further explanation.
 #'
 #' @return A \code{SpatRast} (\code{terra} package) raster object with a layer
 #'   for each requested quantile within each stratum. For example, calculating
@@ -107,6 +109,31 @@
 #'   quantile. If the maximum likelihood cover estimate has been requested
 #'   (\code{mle=TRUE}), this will appear before any quantile layers for each
 #'   stratum with a name of the form \code{stratum_mle}.
+#'
+#' @examples
+#' \dontrun{
+#' # Estimate quantiles of vegetation cover for each stratum corresponding to
+#' # 50\% and 90\% bounds and the median.
+#' #
+#' probs <- c(0.05, 0.25, 0.5, 0.75, 0.95)
+#' rcover <- get_cover_quantiles(rcounts, probs)
+#'
+#' # Alternatively, calculate the maximum likelihood cover estimate for each
+#' # stratum. Note that this is insensitive to LiDAR point density, i.e. it provides
+#' # no indication of the uncertainty associated with the estimates.
+#' #
+#' rcover_mle <- get_cover_quantiles(rcounts, probs = NULL, mle = TRUE)
+#'
+#' # An example of setting 'informed' beta priors for two strata:
+#' # 'LowShrub' and 'MediumTree', corresponding to an expectation of 25\% cover
+#' # for shrubs and 40\% cover for trees. Note that case is ignored when matching
+#' # strata names. The default \code{beta(1,1)} prior will be used for other strata.
+#' #
+#' beta_prior <- list(lowshrub=c(2,4), mediumtree=c(2,2.5))
+#' }
+#'
+#' @seealso \code{\link{get_cover_difference}}
+#' @seealso \code{\link{beta_prior_helper}}
 #'
 #' @export
 #'
@@ -145,14 +172,10 @@ get_cover_quantiles <- function(rcounts,
     stop(msg)
   }
 
-  # Check the beta_prior argument
-  .sanity_check_beta_prior(beta_prior, nbands)
+  # Check the beta_prior argument (vector or list) and format it
+  # as a matrix of parameters
+  beta_prior <- .prepare_beta_prior(beta_prior, rcounts)
 
-  # Convert the beta_prior argument to matrix form.
-  if (is.numeric(beta_prior)) {
-    beta_prior <- lapply(2:nbands, function(...) beta_prior)
-  }
-  beta_prior <- do.call(rbind, beta_prior)
 
   # Worker function for cover calculations
   fn <- function(x, istratum) {
@@ -270,17 +293,19 @@ get_cover_quantiles <- function(rcounts,
 #'   the stratum. If \code{FALSE} (the default), quantiles for change values
 #'   will be based on the prior beta distribution.
 #'
-#' @param beta_prior (\strong{Expert use only!}) Either a numeric vector
-#'   of two values defining the prior beta distribution to use for all strata,
-#'   or a named list of two-element numeric vectors where the element names
-#'   match (case-insensitive) layer names for vegetation strata in the input
-#'   point count raster. The default is \code{c(1,1)} for a \code{beta(1,1)}
-#'   distribution which is equivalent to a uniform distribution on the (0,1)
-#'   interval for all strata. This is probably what you want unless (a) you
-#'   really know what you are doing and (b) there are particular reasons, i.e.
-#'   previous studies or expert knowledge, to expect cover values for one or
-#'   more strata to follow alternative distributions. See the Details section
-#'   of function \code{get_cover_quantiles} for further explanation.
+#' @param beta_prior (\strong{Expert use only!}) Either a numeric vector of two
+#'   values defining the prior beta distribution to use for all strata, or a
+#'   named list of two-element vectors where names match raster layer names for
+#'   vegetation strata (case-insensitive). The default is \code{c(1,1)} for a
+#'   \code{beta(1,1)} distribution which is equivalent to a uniform distribution
+#'   on the (0,1) interval for all strata. This is probably what you want unless
+#'   (a) you really know what you are doing and (b) there are particular
+#'   reasons, i.e. previous studies or expert knowledge, to expect cover values
+#'   for one or more strata to follow alternative distributions. For the list
+#'   option, the default \code{c(1,1)} prior parameters will be used any strata
+#'   not matched to list element names. The function \code{beta_prior_helper}
+#'   can be used to explore candidate distributions given an expected cover
+#'   value. See the examples and the Details section for further explanation.
 #'
 #' @param nsim Number of iterations for simulating the difference between the
 #'   two beta distributions representing possible cover values at times
@@ -307,13 +332,47 @@ get_cover_quantiles <- function(rcounts,
 #'   change estimates. Column names have the same form as that described for
 #'   raster band names.
 #'
+#' @examples
+#' \dontrun{
+#' # Given two point count rasters, r0 (earlier time t0) and r1 (later time t1),
+#' # calculate quantiles for difference in stratum cover at t1 compared to t0.
+#' #
+#' # Randomly select 100 pixels and create a set of point features
+#' library(sf)
+#' library(terra)
+#'
+#' icells <- sample(1:ncells(r0), size = 100)
+#' xy <- as.data.frame( xyFromCell(icells) )
+#' xy <- st_as_sf(xy, coords = 1:2)
+#'
+#' # Set the coordinate reference system for sample points. This is optional
+#' # if r0 and r1 are in the same projection.
+#' st_crs(xy) <- st_crs(r0)
+#'
+#' # Quantiles of cover change (time t1 relative to t0) corresponding to
+#' # median, 50\% bounds and 90\% bounds. The result is a data frame with a
+#' # column for each stratum x quantile.
+#' #
+#' probs <- c(0.05, 0.25, 0.5, 0.75, 0.95)
+#' dat_change <- get_cover_difference(r0, r1, probs, sample = xy, seed = 42)
+#'
+#'
+#' # If the point count rasters are not too large, or you are happy to wait,
+#' # you can calculate change estimates for all pixels by leaving the
+#' # sample argument at its default of NULL. In this case, a terra::SpatRaster
+#' # object is returned with a band for each stratum x quantile.
+#' #
+#' r_change <- get_cover_difference(r0, r1, probs, seed = 42)
+#' }
+#'
+#' @seealso \code{\link{get_cover_quantiles}}
 #'
 #' @export
 #'
 get_cover_difference <- function(rcounts0,
                                  rcounts1,
                                  probs = c(0.05, 0.5, 0.95),
-                                 sample = NULL,
+                                 samplelocs = NULL,
                                  backgroundNA = FALSE,
                                  beta_prior = c(1, 1),
                                  nsim = 1e5,
@@ -351,15 +410,8 @@ get_cover_difference <- function(rcounts0,
     stop("Both point count rasters must have the same number of rows and columns")
   }
 
-  # Check the beta_prior argument
-  .sanity_check_beta_prior(beta_prior, nbands)
-
-  # Convert the beta_prior argument to matrix form.
-  if (is.numeric(beta_prior)) {
-    beta_prior <- lapply(2:nbands, function(...) beta_prior)
-  }
-  beta_prior <- do.call(rbind, beta_prior)
-
+  # Check the beta_prior argument and convert to matrix form
+  beta_prior <- .prepare_beta_prior(beta_prior, rcounts0)
 
   if (is.null(samplelocs)) {
     # Calculating change values for all cells.
@@ -529,6 +581,98 @@ get_cover_difference <- function(rcounts0,
 }
 
 
+#' Generate candidates for beta prior parameters
+#'
+#' This function can be used to explore alternative beta distributions to use
+#' with the \code{beta_prior} argument of functions \code{get_cover_quantiles}
+#' and \code{get_cover_difference}. It returns parameter values of distributions
+#' corresponding to a prior expected value for stratum vegetation cover and,
+#' optionally, draws a graph of the alternative distributions.
+#'
+#' This function interprets the expected vegetation cover value as the mode of
+#' the beta distribution, i.e. the maximum likelihood value. For this reason it
+#' will only accept values greater than 1.0 for the first beta parameter
+#' (argument \code{'a'}). A beta(1,1) distribution is equivalent to a uniform
+#' distribution of cover values, while \code{beta(a, b)} distributions with
+#' \code{a < 1} are concave, i.e. the mode is undefined.
+#'
+#' Given an expected
+#' (maximum likelihood) cover value, and candidate values for the first beta
+#' parameter, the function calculates corresponding values for the second beta
+#' parameter and returns a matrix with columns for the beta parameters (named
+#' 'a' and 'b'), and summary statistics.
+#'
+#' @param cover Expected value (i.e. maximum likelihood value) of vegetation
+#'   cover. Must be a single value greater than 1.0.
+#'
+#' @param a Candidate values for the first parameter of the beta distribution.
+#'   Default is \code{c(2, 4, 8, 16)}.
+#'
+#' @param plot A logical value (default is \code{FALSE}) specifying whether to draw a
+#'   graph of the beta distributions.
+#'
+#' @return A matrix with columns for the beta parameters ('a' and 'b') plus
+#'   columns for the median cover and the \code{c(0.05, 0.95)} quantiles
+#'   (end-points of central 90\% interval). The input expected cover value is
+#'   attached as the attribute \code{"cover"}.
+#'
+#' @examples
+#' # Return parameter values and draw a graph of beta distributions for
+#' # an expected stratum cover value of 40\%
+#' params <- beta_prior_helper(0.4, plot=TRUE)
+#'
+#' # Retrieve the input expected cover value used for calculations
+#' attr(params, "cover")
+#'
+#' @export
+#'
+beta_prior_helper <- function(cover, a = c(2, 4, 8, 16), plot = FALSE) {
+  if (!all(a > 1)) stop("Value(s) for first beta parameter (a) must be greater than 1.0")
+
+  if (length(cover) > 1) {
+    warning("Only using first cover value")
+    cover <- cover[1]
+  }
+
+  stopifnot(cover > 0 & cover < 1)
+
+  a <- rev(sort(unique(a)))
+  b <- (a - 1) / cover - a + 2
+
+  if (plot) {
+    clrs <- grDevices::palette.colors(length(a))
+
+    curve(dbeta(x, a[1], b[1]), xlab = "vegetation cover", ylab = "density", lwd=2)
+    abline(v = cover, lty = 2)
+
+    if (length(a) > 1) {
+      clrs <- grDevices::palette.colors(length(a))
+
+      for (k in 2:length(a)) curve(dbeta(x, a[k], b[k]), add=TRUE, col = clrs[k], lwd=2)
+
+      x <- 0.7
+      y <- dbeta(cover, a[1], b[1])
+      labels <- sprintf("beta(%.3g, %.3g)", a, b)
+      legend(x, y, legend = labels, col = clrs, lwd = 2, bty = "n")
+    }
+  }
+
+
+  res <- cbind(a = a, b = b,
+               median = qbeta(0.5, a, b),
+               lwr90 = qbeta(0.05, a, b),
+               upr90 = qbeta(0.95, a, b))
+
+  # Order matrix rows by increasing 'a' value
+  res <- res[order(a), ]
+
+  # Record the input cover value as an attribute
+  attr(res, "cover") <- cover
+
+  res
+}
+
+
 # Private helper to check that a raster looks like valid point count data.
 # Input must be a terra::SpatRaster object.
 #
@@ -549,15 +693,18 @@ get_cover_difference <- function(rcounts0,
 }
 
 
-# Private helper function to check that a vector is a valid set of parameters
-# for a beta prior distribution.
+# Private helper function called by get_cover_quantiles() and get_cover_difference().
+# Checks that the beta_prior argument has valid form and values and converts it to
+# matrix form.
 #
 # x - numeric vector or list of number vectors
-# nlayers - number of layers in the point counts raster being processed
-#   by get_cover_quantiles()
 #
-.sanity_check_beta_prior <- function(x, nlayers) {
+# rcounts - a multi-band terra::SpatRaster with point counts for
+#   ground (band 1) and vegetation strata
+#
+.prepare_beta_prior <- function(x, rcounts) {
   nm <- deparse(substitute(x))
+  nlayers <- terra::nlyr(rcounts)
 
   .check_vector <- function(v, index = NULL) {
     if (!is.null(index)) nm <- paste(nm, "element", index)
@@ -568,19 +715,62 @@ get_cover_difference <- function(rcounts0,
   if (is.numeric(x)) {
     .check_vector(x)
 
+    # Return matrix with same beta parameters for all stratum bands
+    matrix(x, nrow = nlayers-1, ncol=2, byrow = TRUE)
+
+
   } else if (is.list(x)) {
-    if (length(x) != nlayers - 1) {
+    if (length(x) > nlayers - 1) {
       msg <- glue::glue(
         "The list of beta prior parameters '{nm}' has {length(x)} elements.
-        Expected {nlayers - 1} elements corresponding to the {nlayers - 1} non-ground layers
-        in the point counts raster")
+        Expected at most {nlayers - 1} elements for the non-ground strata in
+        the point counts raster")
       stop(msg)
     }
 
+    # Match list element names to raster layer names
+    if (is.null(names(x))) {
+      msg <- glue::glue(
+        "The list of beta prior parameters '{nm}' must have element names
+         matching point count layer names for vegetation strata")
+      stop(msg)
+
+    } else {
+      el.names <- stringr::str_trim(tolower(names(x)))
+      lyr.names <- stringr::str_trim(tolower(names(rcounts)))[-1] # ignore first (ground) layer
+
+      if (any(table(el.names) > 1)) {
+        stop("One or more beta prior list element names are repeated (case-insensitive)")
+      }
+
+      found <- el.names %in% lyr.names
+      if (!all(found)) {
+        msg <- glue::glue(
+          "The list of beta prior parameters '{nm}' contains
+           one or more elements that do not match raster layer names:
+           {paste(el.names[!found], collapse = ', ')}")
+        stop(msg)
+      }
+    }
+
+    # Finally, check that element values are all valid length-2 vectors
     for (i in seq_along(x)) .check_vector(x[[i]], i)
 
+
+    # Convert list to a matrix with c(1,1) default parameters for any layers
+    # not matched to a list element name.
+    m <- matrix(rep(1, 2*(nlayers-1)), ncol = 2)
+    index <- match(el.names, lyr.names)
+    for (k in seq_along(index)) {
+      m[index[k], ] <- x[[k]]
+    }
+
+    m
+
   } else {
-    stop(nm, " must be a two-element numeric vector or a list of vectors")
+    stop(nm, " must be a two-element numeric vector or a named list of vectors")
   }
+
+
 }
 
