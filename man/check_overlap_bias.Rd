@@ -20,6 +20,9 @@ check_overlap_bias(
 \item{ov_polys}{An \code{sf} data frame of polygons as returned by the
 function \code{get_flightline_overlaps}.}
 
+\item{nsample_points}{The number of points to sample from the LiDAR point
+cloud.}
+
 \item{bias_threshold}{The threshold value, above which bias is considered to
 be present. Default value is 1.5. See Details for more explanation.}
 
@@ -37,9 +40,6 @@ ground and vegetation classes for a ratio to be calculated. This is to
 guard against cases where there are no ground points, and also to avoid
 bias assessment on unreliable ratios based on only a small number of
 vegetation points. The default is 100 points.}
-
-\item{n_sample_points}{The number of points to sample from the LiDAR point
-cloud.}
 }
 \value{
 A logical value, where \code{TRUE} indicates that bias has been

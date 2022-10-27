@@ -135,6 +135,8 @@
 #' @seealso \code{\link{get_cover_difference}}
 #' @seealso \code{\link{beta_prior_helper}}
 #'
+#' @importFrom stats qbeta
+
 #' @export
 #'
 get_cover_quantiles <- function(rcounts,
@@ -448,6 +450,8 @@ get_cover_difference <- function(rcounts0,
   rsum0 <- terra::subset(rcounts0, 1)
   rsum1 <- terra::subset(rcounts1, 1)
 
+  nbands <- terra::nlyr(rcounts0)
+
   # For each veg stratum band:
   #   - increment total point count
   #   - call worker function to calculate quantiles and/or MLE
@@ -624,6 +628,8 @@ get_cover_difference <- function(rcounts0,
 #' # Retrieve the input expected cover value used for calculations
 #' attr(params, "cover")
 #'
+#' @importFrom graphics abline curve legend
+#' @importFrom stats dbeta qbeta
 #' @export
 #'
 beta_prior_helper <- function(cover, a = c(2, 4, 8, 16), plot = FALSE) {

@@ -16,10 +16,10 @@ ddiffbeta_sim <- function(x, s0, n0, s1, n1, beta_prior = c(1,1), nsim = 1e5, se
   a1 <- s1 + beta_prior[1]
   b1 <- n1 - s1 + beta_prior[2]
 
-  rr <- rbeta(nsim, a1, b1) - rbeta(nsim, a0, b0)
-  d <- density(rr, from=-1, to = 1)
+  rr <- stats::rbeta(nsim, a1, b1) - stats::rbeta(nsim, a0, b0)
+  d <- stats::density(rr, from=-1, to = 1)
 
-  dfit <- approx(d, xout = x)
+  dfit <- stats::approx(d, xout = x)
   dfit$y
 }
 
@@ -41,8 +41,8 @@ pdiffbeta_sim <- function(x, s0, n0, s1, n1, beta_prior = c(1,1), nsim = 1e5, se
   a1 <- s1 + beta_prior[1]
   b1 <- n1 - s1 + beta_prior[2]
 
-  rr <- rbeta(nsim, a1, b1) - rbeta(nsim, a0, b0)
-  ecdf(rr)(x)
+  rr <- stats::rbeta(nsim, a1, b1) - stats::rbeta(nsim, a0, b0)
+  stats::ecdf(rr)(x)
 }
 
 
@@ -63,7 +63,7 @@ qdiffbeta_sim <- function(probs, s0, n0, s1, n1, beta_prior = c(1,1), nsim = 1e5
   a1 <- s1 + beta_prior[1]
   b1 <- n1 - s1 + beta_prior[2]
 
-  rr <- rbeta(nsim, a1, b1) - rbeta(nsim, a0, b0)
-  quantile(rr, probs, type=4)
+  rr <- stats::rbeta(nsim, a1, b1) - stats::rbeta(nsim, a0, b0)
+  stats::quantile(rr, probs, type=4)
 }
 

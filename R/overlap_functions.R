@@ -411,20 +411,6 @@ remove_flightline_bias <- function(las,
 }
 
 
-# Derive a starting raster of non-overlapping flightline IDs
-# from a raster stack of point counts. Cells in overlap areas
-# are given NA values.
-.make_idbase_layer <- function(r.ids) {
-  calc(r.ids, fun = function(x, ...) {
-    b <- x > 0
-    n <- sum(b, na.rm = TRUE)
-    if (n == 1) which(b)
-    else if (n > 1) NA
-    else 0
-  })
-}
-
-
 # Create a raster layer of non-overlapping flight lines. Areas of overlap
 # are partitioned using a raster nibble approach.
 .nibble_flightlines <- function(las, res = 10, flightline.ids = NULL) {
@@ -470,20 +456,19 @@ remove_flightline_bias <- function(las,
 
   dat <- las@data[ii, c("X", "Y", "flightlineID")]
   id.max <- max(flightline.ids, na.rm = TRUE)
-  id.ind <- which((1:id.max) %in% flightline.ids)
 
   f <- function(ids, ...) {
-    tabulate(ids, nbins = id.max)[id.ind]
+    tabulate(ids, nbins = id.max)[flightline.ids]
   }
 
-  e <- extent(get_las_bounds(las)[1:4])
+  e <- raster::extent(get_las_bounds(las)[1:4])
+  r0 <- raster::raster(e, resolution = res)
 
-
-  r <- rasterize(dat[, c("X", "Y")],
-                 raster(e, res = res),
-                 field = dat$flightlineID,
-                 fun = f,
-                 background = 0)
+  r <- raster::rasterize(dat[, c("X", "Y")],
+                         r0,
+                         field = dat$flightlineID,
+                         fun = f,
+                         background = 0)
 
   names(r) <- paste("id", flightline.ids, sep = ".")
 
@@ -499,7 +484,7 @@ remove_flightline_bias <- function(las,
 .make_idbase_layer <- function(r.ids) {
   flightline.ids <- as.integer(stringr::str_extract(names(r.ids), "\\d+"))
 
-  calc(r.ids, fun = function(x, ...) {
+  raster::calc(r.ids, fun = function(x, ...) {
     b <- x > 0
     n <- sum(b, na.rm = TRUE)
     if (n == 1) flightline.ids[b]

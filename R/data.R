@@ -37,8 +37,8 @@
 #' \item{strata_def}{Name for this strata scheme ('cermb')}
 #' \item{index}{Integer index, ordered by height level}
 #' \item{label}{Stratum label (Ground, 'upto0.5m', 'upto1m' ... 'over80m')}
-#' \item{lower}{Lower height of stratum (metres)}
-#' \item{upper}{Upper height of stratum (metres)}
+#' \item{lowerht}{Lower height of stratum (metres)}
+#' \item{upperht}{Upper height of stratum (metres)}
 #' }
 "StrataCERMB"
 
@@ -56,7 +56,7 @@
 #' \item{strata_def}{Name for this strata scheme ('cermb_old')}
 #' \item{index}{Integer index, ordered by height level}
 #' \item{label}{Stratum label (Ground, 'upto0.5m', 'upto1m' ... 'over30m')}
-#' \item{lower}{Lower height of stratum (metres)}
-#' \item{upper}{Upper height of stratum (metres)}
+#' \item{lowerht}{Lower height of stratum (metres)}
+#' \item{upperht}{Upper height of stratum (metres)}
 #' }
 "StrataCERMB_OLD"

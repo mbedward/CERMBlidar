@@ -130,7 +130,6 @@ compile_metadata <- function(path, dirs = "LAS", exts = "html", extent.crs = 432
 #'
 #' @seealso \code{\link{compile_metadata}}
 #'
-#' @importFrom dplyr %>%
 #' @importFrom stringr str_extract str_replace_all str_subset
 #'
 #' @export

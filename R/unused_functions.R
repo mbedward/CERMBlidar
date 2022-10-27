@@ -16,8 +16,8 @@ layer_summary_metrics <- function(z, prob, breaks) {
   x <- dat %>%
     dplyr::group_by(zcat) %>%
     dplyr::summarize(n = n(),
-                     mean = mean(z),
-                     median = median(z),
+                     mean = stats::mean(z),
+                     median = stats::median(z),
                      lwr = highest_density_interval(z, 0.5)[1],
                      upr = highest_density_interval(z, 0.5)[2])
 
@@ -27,8 +27,8 @@ layer_summary_metrics <- function(z, prob, breaks) {
     bounds <- unname(hpdi.vec(z, prob))
   }
 
-  list(mean = mean(z),
-       median = median(z),
+  list(mean = stats::mean(z),
+       median = stats::median(z),
        lwr = bounds[1],
        upr = bounds[2])
 }
@@ -36,7 +36,7 @@ layer_summary_metrics <- function(z, prob, breaks) {
 
 # Calculate highest density interval for a vector of values
 #
-highest_density_interval <- function (x, prob = 0.95) {
+highest_density_interval <- function (x, prob = 0.9) {
   n <- length(x)
   if (n <= 1) stop("x must have more than 1 element")
   x <- sort(x)

@@ -76,12 +76,12 @@ plot_flightline_points <- function(las,
     if (cl == 35) {
       cldat <- las@data %>%
         as.data.frame() %>%
-        dplyr::filter(Classification %in% 3:5) %>%
+        dplyr::filter(.data$Classification %in% 3:5) %>%
         dplyr::mutate(Classification = 35)
     } else {
       cldat <- las@data %>%
         as.data.frame() %>%
-        dplyr::filter(Classification == cl)
+        dplyr::filter(.data$Classification == cl)
     }
 
     cldat
@@ -90,7 +90,7 @@ plot_flightline_points <- function(las,
   dat <- dplyr::bind_rows(dat)
 
   dat <- dat %>%
-    dplyr::group_by(flightlineID, Classification) %>%
+    dplyr::group_by(.data$flightlineID, .data$Classification) %>%
 
     dplyr::do({
       N <- nrow(.)
@@ -101,7 +101,7 @@ plot_flightline_points <- function(las,
 
     dplyr::ungroup() %>%
 
-    dplyr::mutate(flightline = factor(flightlineID))
+    dplyr::mutate(flightline = factor(.data$flightlineID))
 
 
   gg <- ggplot(data = dat, aes(x = X, y = Y)) +
@@ -319,7 +319,7 @@ get_flightline_overlaps <- function(polys) {
 #' @param ov_polys An \code{sf} data frame of polygons as returned by the
 #'   function \code{get_flightline_overlaps}.
 #'
-#' @param n_sample_points The number of points to sample from the LiDAR point
+#' @param nsample_points The number of points to sample from the LiDAR point
 #'   cloud.
 #'
 #' @param min_points The minimum number of points that must be in each of the
@@ -393,12 +393,12 @@ check_overlap_bias <- function(las,
   # Check for only very small total overlap proportion
   prop_overlap <- ov_polys %>%
     sf::st_drop_geometry() %>%
-    dplyr::group_by(overlap) %>%
-    dplyr::summarize(area = sum(area)) %>%
+    dplyr::group_by(.data$overlap) %>%
+    dplyr::summarize(area = sum(.data$area)) %>%
     dplyr::ungroup() %>%
-    dplyr::mutate(prop = area / sum(area)) %>%
+    dplyr::mutate(prop = .data$area / sum(.data$area)) %>%
     dplyr::filter(overlap == "overlapping") %>%
-    dplyr::pull(prop)
+    dplyr::pull(.data$prop)
 
   if (prop_overlap < 0.01) return(FALSE)
 
@@ -466,18 +466,18 @@ check_overlap_bias <- function(las,
     # areas so we just drop them.
     dplyr::filter(!is.na(Classification)) %>%
 
-    dplyr::group_by(overlap, Classification) %>%
-    dplyr::summarize(npoints = n()) %>%
+    dplyr::group_by(.data$overlap, .data$Classification) %>%
+    dplyr::summarize(npoints = dplyr::n()) %>%
 
     # Fill any missing combinations with zero counts
     dplyr::ungroup() %>%
-    tidyr::complete(overlap, Classification, fill = list(npoints = 0)) %>%
+    tidyr::complete(.data$overlap, .data$Classification, fill = list(npoints = 0)) %>%
 
-    dplyr::group_by(overlap) %>%
-    dplyr::mutate(ratio = fn_ratio(Classification, npoints)) %>%
+    dplyr::group_by(.data$overlap) %>%
+    dplyr::mutate(ratio = fn_ratio(.data$Classification, .data$npoints)) %>%
     dplyr::ungroup() %>%
 
-    tidyr::pivot_wider(names_from = overlap, values_from = c(npoints, ratio))
+    tidyr::pivot_wider(names_from = .data$overlap, values_from = c(.data$npoints, .data$ratio))
 
   # Check if the ratios of veg class to ground points differ
   # substantially between overlap and separate areas
@@ -619,7 +619,7 @@ get_flightline_info <- function(las,
   rects <- dplyr::bind_rows(rects) %>%
     dplyr::left_join(counts, by = "flightlineID") %>%
 
-    dplyr::group_by(flightlineID) %>%
+    dplyr::group_by(.data$flightlineID) %>%
 
     dplyr::do({
       # Find side lengths and angle of longest side
@@ -669,7 +669,7 @@ get_flightline_info <- function(las,
 
     dat <- dat[ii, ]
 
-    model <- lm(dtime ~ X + Y, data = dat)
+    model <- stats::lm(dtime ~ X + Y, data = dat)
     pdat <- expand.grid(X = range(dat$X), Y = range(dat$Y)) %>% dplyr::arrange(X, Y)
     p <- predict(model, newdata = pdat)
     dtX <- abs(p[1] - p[3])
@@ -685,13 +685,13 @@ get_flightline_info <- function(las,
   # GPS point time trend along X and Y dimensions for each flight line
   # and orientation inferred from this
   timetrend <- las@data %>%
-    dplyr::filter(flightlineID %in% ids) %>%
+    dplyr::filter(.data$flightlineID %in% ids) %>%
 
-    dplyr::select(X, Y, flightlineID, gpstime) %>%
+    dplyr::select(.data$X, .data$Y, .data$flightlineID, .data$gpstime) %>%
 
-    dplyr::group_by(flightlineID) %>%
+    dplyr::group_by(.data$flightlineID) %>%
 
-    dplyr::mutate(dtime = gpstime - min(gpstime)) %>%
+    dplyr::mutate(dtime = .data$gpstime - min(.data$gpstime)) %>%
 
     dplyr::do(fn_get_timetrend(.))
 
@@ -705,13 +705,13 @@ get_flightline_info <- function(las,
       TRUE ~ orientation.time
     )) %>%
 
-    dplyr::select(flightlineID, angle, ratio.sidelen, orientation)
+    dplyr::select(.data$flightlineID, .data$angle, .data$ratio.sidelen, .data$orientation)
 
 
   sfdat <- sfdat %>%
     dplyr::left_join(rects, by = "flightlineID") %>%
     dplyr::left_join(counts, by = "flightlineID") %>%
-    dplyr::mutate(ppoints = npoints / total.count)
+    dplyr::mutate(ppoints = .data$npoints / total.count)
 
   if (length(ids.fewpoints) > 0) {
     npoints.few <- counts.all[ as.character(ids.fewpoints) ]
@@ -733,7 +733,7 @@ get_flightline_info <- function(las,
     # Note: using dplyr::rbind does not work here for some reason
     # (with dplyr 0.8.0.1)
     sfdat <- rbind(sfdat, sfdat.few) %>%
-      dplyr::arrange(flightlineID)
+      dplyr::arrange(.data$flightlineID)
   }
 
   sfdat
@@ -759,7 +759,7 @@ get_flightline_info <- function(las,
 #'
 check_flightline_orientation <- function(las, ...) {
   dat <- get_flightline_info(las, ...)
-  o <- na.omit(dat$orientation)
+  o <- stats::na.omit(dat$orientation)
 
   if (length(o) == 0) FALSE
   else (o[1] %in% c("EW", "NS")) && all(o == o[1])

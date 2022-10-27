@@ -352,7 +352,7 @@ prepare_tile <- function(path,
   if (is.null(fields)) fields <- "*"
   else fields <- .as_scalar(fields)
 
-  treat.as.ground <- na.omit(treat.as.ground)
+  treat.as.ground <- stats::na.omit(treat.as.ground)
   if (length(treat.as.ground) == 0) treat.as.ground <- c(2,9)
 
   # Vector to hold paths to (possibly) unzipped las and dem files
