@@ -79,10 +79,10 @@
 #'
 #' @param backgroundNA Controls what pixel value should be returned for a
 #'   stratum when there are no LiDAR points for the stratum, any lower strata or
-#'   ground. If set to \code{TRUE}, such cases will have missing (\code{NA})
-#'   pixel values for all quantile layers for the stratum. If \code{FALSE} (the
-#'   default), pixel values will be calculated as quantiles of the prior beta
-#'   distribution. Note that if maximum likelihood mean cover estimates are
+#'   ground. If set to \code{TRUE} (the default), such cases will have missing
+#'   (\code{NA}) pixel values for all quantile layers for the stratum. If
+#'   \code{FALSE}, pixel values will be calculated as quantiles of the prior
+#'   beta distribution. Note that if maximum likelihood mean cover estimates are
 #'   specified (via \code{mle=TRUE}) these will always be \code{NA} for any
 #'   pixels without LiDAR data.
 #'
@@ -142,7 +142,7 @@
 get_cover_quantiles <- function(rcounts,
                                 probs = c(0.05, 0.5, 0.95),
                                 mle = FALSE,
-                                backgroundNA = FALSE,
+                                backgroundNA = TRUE,
                                 beta_prior = c(1, 1)) {
 
   rcounts <- .as_spat_raster(rcounts)
