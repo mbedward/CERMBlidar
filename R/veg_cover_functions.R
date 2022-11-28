@@ -79,10 +79,10 @@
 #'
 #' @param backgroundNA Controls what pixel value should be returned for a
 #'   stratum when there are no LiDAR points for the stratum, any lower strata or
-#'   ground. If set to \code{TRUE}, such cases will have missing (\code{NA})
-#'   pixel values for all quantile layers for the stratum. If \code{FALSE} (the
-#'   default), pixel values will be calculated as quantiles of the prior beta
-#'   distribution. Note that if maximum likelihood mean cover estimates are
+#'   ground. If set to \code{TRUE} (the default), such cases will have missing
+#'   (\code{NA}) pixel values for all quantile layers for the stratum. If
+#'   \code{FALSE}, pixel values will be calculated as quantiles of the prior
+#'   beta distribution. Note that if maximum likelihood mean cover estimates are
 #'   specified (via \code{mle=TRUE}) these will always be \code{NA} for any
 #'   pixels without LiDAR data.
 #'
@@ -142,7 +142,7 @@
 get_cover_quantiles <- function(rcounts,
                                 probs = c(0.05, 0.5, 0.95),
                                 mle = FALSE,
-                                backgroundNA = FALSE,
+                                backgroundNA = TRUE,
                                 beta_prior = c(1, 1)) {
 
   rcounts <- .as_spat_raster(rcounts)
@@ -192,9 +192,13 @@ get_cover_quantiles <- function(rcounts,
       k <- 2
     }
     if (length(probs) > 0) {
-      res[k:nout] <- qbeta(probs,
-                           shape1 = prior_params[1] + x[1],
-                           shape2 = prior_params[2] + x[2] - x[1])
+      if (backgroundNA && x[2] == 0) {
+        res[k:nout] <- NA_real_
+      } else {
+        res[k:nout] <- qbeta(probs,
+                             shape1 = prior_params[1] + x[1],
+                             shape2 = prior_params[2] + x[2] - x[1])
+      }
     }
     res
   }
@@ -290,9 +294,9 @@ get_cover_quantiles <- function(rcounts,
 #'
 #' @param backgroundNA Controls what pixel value should be returned for a
 #'   stratum when there are no LiDAR points for the stratum , any lower strata
-#'   or ground level in one or both point counts rasters. If set to \code{TRUE},
-#'   such cases will have missing (\code{NA}) pixel values for all quantiles for
-#'   the stratum. If \code{FALSE} (the default), quantiles for change values
+#'   or ground level in one or both point counts rasters. If set to \code{TRUE}
+#'   (the default), such cases will have missing (\code{NA}) pixel values for
+#'   all quantiles for the stratum. If \code{FALSE}, quantiles for change values
 #'   will be based on the prior beta distribution.
 #'
 #' @param beta_prior (\strong{Expert use only!}) Either a numeric vector of two
@@ -375,7 +379,7 @@ get_cover_difference <- function(rcounts0,
                                  rcounts1,
                                  probs = c(0.05, 0.5, 0.95),
                                  samplelocs = NULL,
-                                 backgroundNA = FALSE,
+                                 backgroundNA = TRUE,
                                  beta_prior = c(1, 1),
                                  nsim = 1e5,
                                  seed = NULL) {
@@ -440,9 +444,14 @@ get_cover_difference <- function(rcounts0,
   # where s_ is stratum points and n_ is total points.
   #
   fn <- function(x, istratum) {
-    qdiffbeta_sim(probs,
-              s0 = x[1], n0 = x[2], s1 = x[3], n1 = x[4],
-              beta_prior = beta_prior[istratum, ], nsim = nsim, seed = seed)
+    if (backgroundNA && (x[2] == 0 || x[4] == 0)) {
+      # No lidar points in one or both layers for this stratum and below
+      rep(NA_real_, length(probs))
+    } else {
+      qdiffbeta_sim(probs,
+                    s0 = x[1], n0 = x[2], s1 = x[3], n1 = x[4],
+                    beta_prior = beta_prior[istratum, ], nsim = nsim, seed = seed)
+    }
   }
 
   # Initialize a raster of total point counts with the ground layer
@@ -553,11 +562,16 @@ get_cover_difference <- function(rcounts0,
     xsum1 <- cumsum(x1)
 
     res <- lapply(2:length(x0), function(i) {
-      qdiffbeta_sim(probs,
-                    s0 = x0[i], n0 = xsum0[i],
-                    s1 = x1[i], n1 = xsum1[i],
-                    beta_prior = beta_prior[i-1, ], # i-1 is stratum index
-                    nsim = nsim, seed = seed)
+      if (backgroundNA && (xsum0[i] == 0 || xsum1[i] == 0)) {
+        # No lidar points in one or both layers for this stratum and below
+        rep(NA_real_, length(probs))
+      } else {
+        qdiffbeta_sim(probs,
+                      s0 = x0[i], n0 = xsum0[i],
+                      s1 = x1[i], n1 = xsum1[i],
+                      beta_prior = beta_prior[i-1, ], # i-1 is stratum index
+                      nsim = nsim, seed = seed)
+      }
     })
 
     # reshape into a single vector with elements ordered by stratum then quantile

@@ -1,8 +1,8 @@
 Package: CERMBlidar
 Type: Package
 Title: A collection of functions to process aerial LIDAR data
-Version: 0.3.15
-Date: 2022-10-25
+Version: 0.3.16
+Date: 2022-10-28
 Authors@R: c(
   person("Michael", "Bedward", role = c("aut", "cre"), email = "michael.bedward@gmail.com"),
   person("Meaghan", "Jenkins", role = "aut")
@@ -10,11 +10,9 @@ Authors@R: c(
 Description: Functions to prepare and analyse aerial LIDAR data. Written for
   the Centre for Environmental Risk Management of Bushfires, University of 
   Wollongong, Australia. Most functions are wrappers around those in the lidR
-  package. The package may be freely used by anyone, but please note that: (1) 
-  Some functions are particular to data conventions used by New South Wales 
-  State Government and might not be suitable for general use; (2) There are
-  likely to be breaking changes in package code between successive 0.x 
-  versions.
+  package. The package may be freely used by anyone, but keep in mind that 
+  some functions are particular to data conventions used by New South Wales 
+  State Government. 
 License: GPL-2 + file LICENSE
 URL: https://github.com/mbedward/CERMBlidar
 Encoding: UTF-8
