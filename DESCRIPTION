@@ -17,7 +17,7 @@ License: GPL-2 + file LICENSE
 URL: https://github.com/mbedward/CERMBlidar
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.2.1
+RoxygenNote: 7.2.3
 Suggests: testthat,
     knitr,
     rmarkdown,

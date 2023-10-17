@@ -9,7 +9,7 @@ get_cover_difference(
   rcounts1,
   probs = c(0.05, 0.5, 0.95),
   samplelocs = NULL,
-  backgroundNA = FALSE,
+  backgroundNA = TRUE,
   beta_prior = c(1, 1),
   nsim = 1e+05,
   seed = NULL
@@ -45,9 +45,9 @@ assumed to apply to the sample coordinates.}
 
 \item{backgroundNA}{Controls what pixel value should be returned for a
 stratum when there are no LiDAR points for the stratum , any lower strata
-or ground level in one or both point counts rasters. If set to \code{TRUE},
-such cases will have missing (\code{NA}) pixel values for all quantiles for
-the stratum. If \code{FALSE} (the default), quantiles for change values
+or ground level in one or both point counts rasters. If set to \code{TRUE}
+(the default), such cases will have missing (\code{NA}) pixel values for
+all quantiles for the stratum. If \code{FALSE}, quantiles for change values
 will be based on the prior beta distribution.}
 
 \item{beta_prior}{(\strong{Expert use only!}) Either a numeric vector of two
